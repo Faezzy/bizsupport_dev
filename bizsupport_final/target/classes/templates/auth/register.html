@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head><meta charset="UTF-8"/><title>Регистрация — BizSupport</title>
+<th:block th:replace="~{fragments/sidebar :: head}"/></head>
+<body>
+<div class="auth-container">
+  <div class="auth-card">
+    <div class="auth-brand">
+      <i class="bi bi-briefcase-fill"></i>
+      <h2>BizSupport</h2>
+      <p>Создайте аккаунт</p>
+    </div>
+
+    <div th:if="${error}" class="alert-custom" style="background:var(--danger-light);border:1px solid #FECACA;margin-bottom:1rem">
+      <i class="bi bi-exclamation-circle-fill" style="color:var(--danger)"></i> <span th:text="${error}"></span>
+    </div>
+
+    <form th:action="@{/register}" method="post" th:object="${req}">
+      <div class="mb-3">
+        <label class="form-label">Полное имя</label>
+        <input type="text" class="form-control" th:field="*{fullName}" placeholder="Иван Иванов" required/>
+        <div th:if="${#fields.hasErrors('fullName')}" style="color:var(--danger);font-size:.8rem;margin-top:4px" th:errors="*{fullName}"></div>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Email</label>
+        <input type="email" class="form-control" th:field="*{email}" placeholder="you@company.ru" required/>
+        <div th:if="${#fields.hasErrors('email')}" style="color:var(--danger);font-size:.8rem;margin-top:4px" th:errors="*{email}"></div>
+      </div>
+      <div class="mb-4">
+        <label class="form-label">Пароль (мин. 6 символов)</label>
+        <input type="password" class="form-control" th:field="*{password}" placeholder="••••••••" required/>
+        <div th:if="${#fields.hasErrors('password')}" style="color:var(--danger);font-size:.8rem;margin-top:4px" th:errors="*{password}"></div>
+      </div>
+      <button type="submit" class="btn-accent w-100" style="padding:.75rem"><i class="bi bi-person-plus"></i> Зарегистрироваться</button>
+    </form>
+
+    <div style="text-align:center;margin-top:1.5rem;font-size:.9rem;color:var(--muted)">
+      Уже есть аккаунт? <a th:href="@{/login}" style="color:var(--accent);font-weight:600;text-decoration:none">Войти</a>
+    </div>
+  </div>
+</div>
+</body></html>

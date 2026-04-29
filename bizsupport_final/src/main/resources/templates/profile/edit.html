@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head><meta charset="UTF-8"/><title>Профиль — BizSupport</title>
+<th:block th:replace="~{fragments/sidebar :: head}"/></head>
+<body>
+<th:block th:replace="~{fragments/sidebar :: sidebar(activePage='profile')}"/>
+<div class="main">
+  <div class="page-header">
+    <h1><i class="bi bi-building" style="color:var(--purple)"></i> Профиль компании</h1>
+    <p>Данные вашей организации</p>
+  </div>
+  <div class="card-custom" style="max-width:700px">
+    <form th:action="@{/profile}" method="post" th:object="${req}">
+      <div class="row g-3">
+        <div class="col-md-8"><label class="form-label">Название компании</label><input type="text" class="form-control" th:field="*{companyName}" required/></div>
+        <div class="col-md-4"><label class="form-label">Тип организации</label><select class="form-select" th:field="*{companyType}" required><option value="">Выберите...</option><option th:each="ct : ${companyTypes}" th:value="${ct}" th:text="${ct.displayName}"></option></select></div>
+        <div class="col-md-6"><label class="form-label">ИНН</label><input type="text" class="form-control" th:field="*{inn}" placeholder="1234567890"/></div>
+        <div class="col-md-6"><label class="form-label">Отрасль</label><input type="text" class="form-control" th:field="*{industry}" placeholder="IT, строительство..."/></div>
+        <div class="col-md-6"><label class="form-label">Кол-во сотрудников</label><input type="number" class="form-control" th:field="*{employeesCount}" placeholder="0"/></div>
+        <div class="col-md-6"><label class="form-label">Годовой доход (₽)</label><input type="number" class="form-control" th:field="*{annualRevenue}" placeholder="0"/></div>
+      </div>
+      <div class="mt-4 d-flex gap-2">
+        <button type="submit" class="btn-accent"><i class="bi bi-check-lg"></i> Сохранить</button>
+        <a th:href="@{/dashboard}" class="btn-outline-custom">Отмена</a>
+      </div>
+    </form>
+  </div>
+</div>
+<script th:replace="~{fragments/sidebar :: scripts}"></script>
+</body></html>

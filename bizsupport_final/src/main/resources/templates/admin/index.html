@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head><meta charset="UTF-8"/><title>Админ — BizSupport</title>
+<th:block th:replace="~{fragments/sidebar :: head}"/>
+<style>.sidebar a.active{border-left-color:#A78BFA;background:rgba(167,139,250,.15)}</style>
+</head>
+<body>
+<th:block th:replace="~{admin/sidebar :: sidebar(activePage='dashboard')}"/>
+<div class="main">
+  <div class="page-header">
+    <h1><i class="bi bi-shield-lock" style="color:#A78BFA"></i> Панель администратора</h1>
+    <p>Обзор данных системы BizSupport</p>
+  </div>
+  <div class="row g-3 mb-4">
+    <div class="col-md-3"><div class="stat-card purple"><div class="stat-label">Пользователи</div><div class="stat-value" th:text="${userCount}">0</div></div></div>
+    <div class="col-md-3"><div class="stat-card"><div class="stat-label">Профили компаний</div><div class="stat-value" th:text="${profileCount}">0</div></div></div>
+    <div class="col-md-3"><div class="stat-card green"><div class="stat-label">Налог. режимы</div><div class="stat-value" th:text="${regimeCount}">0</div></div></div>
+    <div class="col-md-3"><div class="stat-card cyan"><div class="stat-label">Сценарии закупок</div><div class="stat-value" th:text="${scenarioCount}">0</div></div></div>
+  </div>
+  <div class="row g-3">
+    <div class="col-md-3"><div class="stat-card danger"><div class="stat-label">Карточки рисков</div><div class="stat-value" th:text="${riskCount}">0</div></div></div>
+    <div class="col-md-3"><div class="stat-card amber"><div class="stat-label">Чек-листы</div><div class="stat-value" th:text="${checklistCount}">0</div></div></div>
+    <div class="col-md-3"><div class="stat-card"><div class="stat-label">Уведомления</div><div class="stat-value" th:text="${notificationCount}">0</div></div></div>
+    <div class="col-md-3"><div class="stat-card green"><div class="stat-label">Дедлайны</div><div class="stat-value" th:text="${deadlineCount}">0</div></div></div>
+  </div>
+  <h5 style="font-weight:600;margin:2rem 0 1rem">Управление</h5>
+  <div class="row g-3">
+    <div class="col-md-4"><a th:href="@{/admin/users}" class="action-card"><div class="icon-circle purple"><i class="bi bi-people"></i></div><div><div class="action-title">Пользователи</div><div class="action-desc">Роли, блокировка, удаление</div></div></a></div>
+    <div class="col-md-4"><a th:href="@{/admin/regimes}" class="action-card"><div class="icon-circle green"><i class="bi bi-calculator"></i></div><div><div class="action-title">Налоговые режимы</div><div class="action-desc">Редактирование справочника</div></div></a></div>
+    <div class="col-md-4"><a th:href="@{/admin/risks}" class="action-card"><div class="icon-circle danger"><i class="bi bi-exclamation-triangle"></i></div><div><div class="action-title">Карточки рисков</div><div class="action-desc">Добавление, редактирование</div></div></a></div>
+  </div>
+</div>
+</body></html>

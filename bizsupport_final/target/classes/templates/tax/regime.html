@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head><meta charset="UTF-8"/><title th:text="${regime.name} + ' — BizSupport'">Режим</title>
+<th:block th:replace="~{fragments/sidebar :: head}"/></head>
+<body>
+<th:block th:replace="~{fragments/sidebar :: sidebar(activePage='tax')}"/>
+<div class="main">
+  <div class="page-header">
+    <div class="d-flex align-items-center gap-3">
+      <h1 th:text="${regime.name}">Режим</h1>
+      <form th:action="@{/tax/regime/{code}/favorite(code=${regime.code})}" method="post">
+        <button type="submit" class="btn-star" th:classappend="${isFavorite} ? 'active'">
+          <i th:classappend="${isFavorite} ? 'bi-star-fill' : 'bi-star'" class="bi"></i>
+        </button>
+      </form>
+    </div>
+    <p th:text="${regime.description}"></p>
+    <span class="badge-custom gray" th:text="${regime.nkRef}"></span>
+  </div>
+
+  <!-- Obligations table -->
+  <div class="card-custom">
+    <h5><i class="bi bi-list-check" style="color:var(--accent)"></i> Налоги и взносы</h5>
+    <div class="table-custom">
+      <table class="table">
+        <thead><tr><th>Налог / взнос</th><th>Ставка</th><th>Описание</th><th>Ссылки</th></tr></thead>
+        <tbody>
+          <tr th:each="ob : ${obligations}">
+            <td style="font-weight:500" th:text="${ob.taxName}"></td>
+            <td><span class="badge-custom blue" th:text="${ob.rate}"></span></td>
+            <td style="font-size:.85rem;color:var(--muted)" th:text="${ob.description}"></td>
+            <td>
+              <a th:if="${ob.fnsServiceUrl}" th:href="${ob.fnsServiceUrl}" target="_blank" class="btn-outline-custom" style="font-size:.8rem"><i class="bi bi-box-arrow-up-right"></i> ФНС</a>
+              <div style="font-size:.75rem;color:var(--muted);margin-top:4px" th:if="${ob.nkRef}" th:text="${ob.nkRef}"></div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Deadlines -->
+  <div class="card-custom">
+    <h5><i class="bi bi-calendar3" style="color:var(--warning)"></i> Ключевые дедлайны</h5>
+    <div th:if="${#lists.isEmpty(deadlines)}" style="color:var(--muted);font-size:.9rem">Дедлайны не указаны</div>
+    <div th:each="d : ${deadlines}" class="data-item">
+      <div class="icon-circle amber"><i class="bi bi-calendar-event"></i></div>
+      <div class="flex-grow-1">
+        <div style="font-weight:600" th:text="${d.title}"></div>
+        <div style="font-size:.85rem;color:var(--muted)" th:text="${d.description}"></div>
+      </div>
+      <span class="badge-custom amber" th:text="${#temporals.format(d.dueDate,'dd.MM.yyyy')}"></span>
+    </div>
+  </div>
+
+  <!-- Legal refs -->
+  <div th:if="${legalRefs != null and !#lists.isEmpty(legalRefs)}" class="card-custom">
+    <h5><i class="bi bi-journal-bookmark" style="color:var(--purple)"></i> Правовые ссылки</h5>
+    <a th:each="ref : ${legalRefs}" th:href="${ref.url}" target="_blank" class="legal-link">
+      <span><i class="bi bi-link-45deg" style="color:var(--accent)"></i> <span th:text="${ref.title}"></span></span>
+      <span class="badge-custom gray" th:text="${ref.article}"></span>
+    </a>
+  </div>
+
+  <div class="d-flex gap-2">
+    <form th:action="@{/tax/set-regime}" method="post">
+      <input type="hidden" name="code" th:value="${regime.code}"/>
+      <button type="submit" class="btn-accent"><i class="bi bi-check-circle"></i> Применить этот режим</button>
+    </form>
+    <a th:href="@{/tax}" class="btn-outline-custom"><i class="bi bi-arrow-left"></i> Назад</a>
+  </div>
+</div>
+<script th:replace="~{fragments/sidebar :: scripts}"></script>
+</body></html>

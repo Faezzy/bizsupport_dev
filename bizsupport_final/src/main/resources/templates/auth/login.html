@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head><meta charset="UTF-8"/><title>Вход — BizSupport</title>
+<th:block th:replace="~{fragments/sidebar :: head}"/></head>
+<body>
+<div class="auth-container">
+  <div class="auth-card">
+    <div class="auth-brand">
+      <i class="bi bi-briefcase-fill"></i>
+      <h2>BizSupport</h2>
+      <p>Войдите в свой аккаунт</p>
+    </div>
+
+    <div th:if="${param.error}" class="alert-custom" style="background:var(--danger-light);border:1px solid #FECACA;margin-bottom:1rem">
+      <i class="bi bi-exclamation-circle-fill" style="color:var(--danger)"></i> Неверный email или пароль
+    </div>
+    <div th:if="${param.logout}" class="alert-custom success" style="margin-bottom:1rem">
+      <i class="bi bi-check-circle-fill" style="color:var(--success)"></i> Вы вышли из системы
+    </div>
+    <div th:if="${param.registered}" class="alert-custom success" style="margin-bottom:1rem">
+      <i class="bi bi-check-circle-fill" style="color:var(--success)"></i> Регистрация успешна! Войдите.
+    </div>
+
+    <form th:action="@{/login}" method="post">
+      <div class="mb-3">
+        <label class="form-label">Email</label>
+        <input type="email" name="username" class="form-control" placeholder="you@company.ru" required autofocus/>
+      </div>
+      <div class="mb-4">
+        <label class="form-label">Пароль</label>
+        <input type="password" name="password" class="form-control" placeholder="••••••••" required/>
+      </div>
+      <button type="submit" class="btn-accent w-100" style="padding:.75rem"><i class="bi bi-box-arrow-in-right"></i> Войти</button>
+    </form>
+
+    <div style="text-align:center;margin-top:1.5rem;font-size:.9rem;color:var(--muted)">
+      Нет аккаунта? <a th:href="@{/register}" style="color:var(--accent);font-weight:600;text-decoration:none">Зарегистрироваться</a>
+    </div>
+  </div>
+</div>
+</body></html>

@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head><meta charset="UTF-8"/><title>Ошибка — BizSupport</title>
+<th:block th:replace="~{fragments/sidebar :: head}"/></head>
+<body>
+<div class="auth-container" style="flex-direction:column;gap:1.5rem">
+  <div style="text-align:center;color:#fff">
+    <div style="font-size:6rem;font-weight:700;opacity:.3;line-height:1">500</div>
+    <h2 style="margin:.5rem 0">Внутренняя ошибка</h2>
+    <p style="color:#94A3B8;margin-bottom:1.5rem">Что-то пошло не так. Попробуйте позже.</p>
+    <a th:href="@{/dashboard}" class="btn-accent" style="text-decoration:none"><i class="bi bi-house"></i> На главную</a>
+  </div>
+</div>
+</body></html>

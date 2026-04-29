@@ -1,0 +1,51 @@
+# ══════════════════════════════════════════════════════════════
+# BizSupport — Docker Compose
+# Запуск: docker-compose up --build
+# ══════════════════════════════════════════════════════════════
+
+version: '3.8'
+
+services:
+
+  # ── PostgreSQL ───────────────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    container_name: bizsupport-db
+    environment:
+      POSTGRES_DB: bizsupport_db
+      POSTGRES_USER: bizsupport_user
+      POSTGRES_PASSWORD: bizsupport_pass
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bizsupport_user -d bizsupport_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  # ── Spring Boot App ──────────────────────────────────────────
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: bizsupport-app
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/bizsupport_db
+      SPRING_DATASOURCE_USERNAME: bizsupport_user
+      SPRING_DATASOURCE_PASSWORD: bizsupport_pass
+      SPRING_JPA_HIBERNATE_DDL_AUTO: validate
+      SPRING_FLYWAY_ENABLED: "true"
+      APP_JWT_SECRET: bizsupport-docker-secret-key-2025-very-long-string
+      APP_JWT_EXPIRATION: "86400000"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  pgdata:
