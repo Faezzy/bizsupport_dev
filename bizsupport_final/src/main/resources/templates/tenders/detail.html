@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head>
+    <meta charset="UTF-8">
+    <title th:text="${tender.title} + ' — BizSupport'">Тендер</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+    <link rel="stylesheet" th:href="@{/css/app.css}">
+    <style>
+        .detail-layout { display: grid; grid-template-columns: 1fr 360px; gap: 24px; }
+        .detail-main { background: white; border: 1px solid var(--border); border-radius: 12px; padding: 28px; }
+        .detail-side { display: flex; flex-direction: column; gap: 16px; }
+        .info-card { background: white; border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+        .info-card h3 { margin: 0 0 16px; font-size: 13px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+        .info-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #F1F5F9; font-size: 14px; }
+        .info-row:last-child { border-bottom: none; }
+        .info-row .label { color: var(--muted); }
+        .info-row .value { font-weight: 500; color: var(--text); text-align: right; max-width: 60%; }
+        .price-box { background: linear-gradient(135deg, #EFF6FF 0%, #F5F3FF 100%); border-radius: 10px; padding: 20px; margin-bottom: 20px; }
+        .price-label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 500; }
+        .price-value { font-size: 32px; font-weight: 700; color: var(--text); margin-top: 4px; }
+        .badges-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
+        .badge { padding: 4px 12px; border-radius: 6px; font-size: 13px; font-weight: 500; }
+        .badge-success { background: var(--success-light); color: var(--success); }
+        .badge-warning { background: var(--warning-light); color: var(--warning); }
+        .badge-danger { background: var(--danger-light); color: var(--danger); }
+        .badge-info { background: var(--info-light); color: var(--info); }
+        .badge-muted { background: #F1F5F9; color: var(--muted); }
+        .badge-law { background: #EFF6FF; color: var(--accent); font-family: monospace; }
+        .badge-msp { background: #FEF3C7; color: #92400E; }
+        .description { font-size: 14px; line-height: 1.7; color: var(--text); margin-bottom: 24px; }
+        .registry-num { font-family: monospace; font-size: 13px; color: var(--muted); margin-bottom: 8px; }
+        .btn { display: inline-block; padding: 10px 20px; border-radius: 8px; font-weight: 500; cursor: pointer; text-decoration: none; font-size: 14px; }
+        .btn-primary { background: var(--accent); color: white; border: none; }
+        .btn-primary:hover { background: #2563EB; }
+        .btn-secondary { background: white; color: var(--text); border: 1px solid var(--border); }
+        .btn-secondary:hover { background: #F8FAFC; }
+        .btn-back { color: var(--muted); text-decoration: none; font-size: 14px; margin-bottom: 16px; display: inline-block; }
+        .btn-back:hover { color: var(--accent); }
+        .deadline-banner { background: var(--warning-light); border-left: 4px solid var(--warning); padding: 12px 16px; border-radius: 6px; margin-bottom: 16px; font-size: 14px; }
+        .deadline-banner.urgent { background: var(--danger-light); border-left-color: var(--danger); color: var(--danger); }
+        .deadline-banner.expired { background: #F1F5F9; border-left-color: #94A3B8; color: var(--muted); }
+
+        @media (max-width: 900px) { .detail-layout { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+
+<div th:replace="~{fragments/sidebar :: sidebar('tenders')}"></div>
+
+<main class="main-content">
+    <a href="/tenders" class="btn-back">← Назад к ленте</a>
+
+    <div class="detail-layout">
+        <article class="detail-main">
+            <div class="registry-num">Реестровый номер: <span th:text="${tender.registryNumber}">000000</span></div>
+            <h1 style="margin: 0 0 12px; font-size: 22px; line-height: 1.3" th:text="${tender.title}">Название тендера</h1>
+
+            <div class="badges-row">
+                <span th:class="'badge badge-' + ${tender.statusBadge}" th:text="${tender.statusDisplay}">статус</span>
+                <span class="badge badge-law" th:text="${tender.lawTypeDisplay}">44-ФЗ</span>
+                <span th:if="${tender.mspOnly}" class="badge badge-msp">Только МСП</span>
+                <span th:if="${tender.category}" class="badge badge-muted" th:text="${tender.category}">категория</span>
+            </div>
+
+            <div th:if="${tender.daysToDeadline ge 0 and tender.daysToDeadline le 1}" class="deadline-banner urgent">
+                ⚠️ <strong>Срочно!</strong> Подача заявок заканчивается завтра или сегодня
+            </div>
+            <div th:if="${tender.daysToDeadline gt 1 and tender.daysToDeadline le 5}" class="deadline-banner">
+                📅 До дедлайна подачи заявок осталось <strong th:text="${tender.daysToDeadline}">3</strong> дн.
+            </div>
+            <div th:if="${tender.daysToDeadline lt 0}" class="deadline-banner expired">
+                Подача заявок завершена
+            </div>
+
+            <h3 style="margin-top: 24px; font-size: 14px; text-transform: uppercase; color: var(--muted); letter-spacing: 0.5px">Описание</h3>
+            <div class="description" th:text="${tender.description}">Описание</div>
+
+            <h3 style="font-size: 14px; text-transform: uppercase; color: var(--muted); letter-spacing: 0.5px">Заказчик</h3>
+            <div class="info-row">
+                <span class="label">Наименование</span>
+                <span class="value" th:text="${tender.customerName}">Имя</span>
+            </div>
+            <div class="info-row">
+                <span class="label">ИНН</span>
+                <span class="value" style="font-family: monospace" th:text="${tender.customerInn}">0</span>
+            </div>
+            <div class="info-row">
+                <span class="label">Регион</span>
+                <span class="value" th:text="${tender.region}">Регион</span>
+            </div>
+
+            <div style="display: flex; gap: 8px; margin-top: 24px;">
+                <a th:if="${tender.sourceUrl}" th:href="${tender.sourceUrl}" target="_blank" rel="noopener"
+                   class="btn btn-primary">Открыть в ЕИС ↗</a>
+                <button class="btn btn-secondary" onclick="toggleFavorite()">⭐ В избранное</button>
+            </div>
+        </article>
+
+        <aside class="detail-side">
+            <div class="info-card">
+                <div class="price-box">
+                    <div class="price-label">Начальная цена</div>
+                    <div class="price-value"
+                         th:text="${#numbers.formatDecimal(tender.initialPrice, 0, 'WHITESPACE', 0, 'COMMA')} + ' ₽'">0 ₽</div>
+                </div>
+
+                <h3>Сроки</h3>
+                <div class="info-row">
+                    <span class="label">Опубликовано</span>
+                    <span class="value" th:text="${#temporals.format(tender.publishedAt, 'dd.MM.yyyy')}">-</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">Подача заявок до</span>
+                    <span class="value" th:text="${#temporals.format(tender.submissionDeadline, 'dd.MM.yyyy HH:mm')}">-</span>
+                </div>
+                <div class="info-row" th:if="${tender.auctionDate}">
+                    <span class="label">Дата торгов</span>
+                    <span class="value" th:text="${#temporals.format(tender.auctionDate, 'dd.MM.yyyy')}">-</span>
+                </div>
+            </div>
+
+            <div class="info-card">
+                <h3>Параметры</h3>
+                <div class="info-row" th:if="${tender.procurementMethod}">
+                    <span class="label">Способ</span>
+                    <span class="value" th:text="${tender.procurementMethod}">-</span>
+                </div>
+                <div class="info-row" th:if="${tender.okpdCode}">
+                    <span class="label">ОКПД2</span>
+                    <span class="value" style="font-family: monospace" th:text="${tender.okpdCode}">-</span>
+                </div>
+                <div class="info-row" th:if="${tender.applicationSecurity != null and tender.applicationSecurity.compareTo(T(java.math.BigDecimal).ZERO) > 0}">
+                    <span class="label">Обеспечение заявки</span>
+                    <span class="value" th:text="${#numbers.formatDecimal(tender.applicationSecurity, 0, 'WHITESPACE', 0, 'COMMA')} + ' ₽'">-</span>
+                </div>
+                <div class="info-row" th:if="${tender.contractSecurity != null and tender.contractSecurity.compareTo(T(java.math.BigDecimal).ZERO) > 0}">
+                    <span class="label">Обеспечение контракта</span>
+                    <span class="value" th:text="${#numbers.formatDecimal(tender.contractSecurity, 0, 'WHITESPACE', 0, 'COMMA')} + ' ₽'">-</span>
+                </div>
+            </div>
+
+            <div class="info-card" style="background: #F8FAFC; border: 1px dashed var(--border);">
+                <h3>💡 Что проверить</h3>
+                <div style="font-size: 13px; line-height: 1.6; color: var(--text)">
+                    Перед участием изучите чек-лист по этому закону.
+                    <a th:href="@{|/procurement/scenarios?law=${tender.lawType}|}" style="color: var(--accent); text-decoration: none; display: block; margin-top: 8px; font-weight: 500">Открыть чек-лист →</a>
+                </div>
+            </div>
+        </aside>
+    </div>
+</main>
+
+<script>
+    async function toggleFavorite() {
+        try {
+            const r = await fetch('/api/favorites/toggle?type=TENDER&entityId=' + [[${tender.id}]], {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            if (r.ok) alert('Готово!');
+        } catch (e) {
+            alert('Войдите, чтобы добавить в избранное');
+        }
+    }
+</script>
+
+</body>
+</html>

@@ -8,8 +8,20 @@
     <a th:href="@{/tax}" th:classappend="${activePage == 'tax'} ? 'active'"><i class="bi bi-calculator"></i> Налоги</a>
     <a th:href="@{/tax/calculator}" th:classappend="${activePage == 'calculator'} ? 'active'"><i class="bi bi-graph-up"></i> Калькулятор</a>
     <a th:href="@{/procurement}" th:classappend="${activePage == 'procurement'} ? 'active'"><i class="bi bi-clipboard-check"></i> Госзакупки</a>
+    <a th:href="@{/tenders}"
+       th:classappend="${active == 'tenders'} ? 'active' : ''"
+       class="nav-item">
+      <span class="nav-icon">📋</span>
+      <span>Тендеры</span>
+    </a>
     <a th:href="@{/search}" th:classappend="${activePage == 'search'} ? 'active'"><i class="bi bi-search"></i> Поиск</a>
     <a th:href="@{/profile}" th:classappend="${activePage == 'profile'} ? 'active'"><i class="bi bi-building"></i> Профиль</a>
+    <a th:href="@{/assistant}"
+       th:classappend="${active == 'assistant'} ? 'active' : ''"
+       class="nav-item">
+      <span class="nav-icon">💬</span>
+      <span>AI-ассистент</span>
+    </a>
     <a th:href="@{/favorites}" th:classappend="${activePage == 'favorites'} ? 'active'"><i class="bi bi-star"></i> Избранное</a>
     <a th:href="@{/notifications}" th:classappend="${activePage == 'notifications'} ? 'active'"><i class="bi bi-bell"></i> Уведомления<span id="notif-badge" class="badge bg-danger ms-auto" style="display:none;"></span></a>
     <div sec:authorize="hasRole('ADMIN')" style="border-top:1px solid #1E293B;margin:.5rem 0"></div>

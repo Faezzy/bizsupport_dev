@@ -2,9 +2,16 @@
 /home/faezzy4/Downloads/bizsupport_full_project/bizsupport_final/src/main/java/ru/bizsupport/config/OpenApiConfig.java
 /home/faezzy4/Downloads/bizsupport_full_project/bizsupport_final/src/main/java/ru/bizsupport/config/SecurityConfig.java
 /home/faezzy4/Downloads/bizsupport_full_project/bizsupport_final/src/main/java/ru/bizsupport/controller/AdminController.java
+/home/faezzy4/Downloads/bizsupport_full_project/bizsupport_final/src/main/java/ru/bizsupport/controller/AssistantController.java
 /home/faezzy4/Downloads/bizsupport_full_project/bizsupport_final/src/main/java/ru/bizsupport/controller/Controllers.java
+/home/faezzy4/Downloads/bizsupport_full_project/bizsupport_final/src/main/java/ru/bizsupport/controller/TenderController.java
+/home/faezzy4/Downloads/bizsupport_full_project/bizsupport_final/src/main/java/ru/bizsupport/controller/api/AssistantApiController.java
 /home/faezzy4/Downloads/bizsupport_full_project/bizsupport_final/src/main/java/ru/bizsupport/controller/api/RestApiControllers.java
 /home/faezzy4/Downloads/bizsupport_full_project/bizsupport_final/src/main/java/ru/bizsupport/controller/api/RestExceptionHandler.java
+/home/faezzy4/Downloads/bizsupport_full_project/bizsupport_final/src/main/java/ru/bizsupport/controller/api/TenderApiController.java
+/home/faezzy4/Downloads/bizsupport_full_project/bizsupport_final/src/main/java/ru/bizsupport/dto/TenderDtos.java
+/home/faezzy4/Downloads/bizsupport_full_project/bizsupport_final/src/main/java/ru/bizsupport/dto/assistant/AssistantDtos.java
+/home/faezzy4/Downloads/bizsupport_full_project/bizsupport_final/src/main/java/ru/bizsupport/dto/assistant/AssistantMessage.java
 /home/faezzy4/Downloads/bizsupport_full_project/bizsupport_final/src/main/java/ru/bizsupport/dto/request/CompanyProfileRequest.java
 /home/faezzy4/Downloads/bizsupport_full_project/bizsupport_final/src/main/java/ru/bizsupport/dto/request/LoginRequest.java
 /home/faezzy4/Downloads/bizsupport_full_project/bizsupport_final/src/main/java/ru/bizsupport/dto/request/RegisterRequest.java
@@ -22,6 +29,9 @@
 /home/faezzy4/Downloads/bizsupport_full_project/bizsupport_final/src/main/java/ru/bizsupport/entity/RiskCard.java
 /home/faezzy4/Downloads/bizsupport_full_project/bizsupport_final/src/main/java/ru/bizsupport/entity/TaxObligation.java
 /home/faezzy4/Downloads/bizsupport_full_project/bizsupport_final/src/main/java/ru/bizsupport/entity/TaxRegime.java
+/home/faezzy4/Downloads/bizsupport_full_project/bizsupport_final/src/main/java/ru/bizsupport/entity/Tender.java
+/home/faezzy4/Downloads/bizsupport_full_project/bizsupport_final/src/main/java/ru/bizsupport/entity/TenderLawType.java
+/home/faezzy4/Downloads/bizsupport_full_project/bizsupport_final/src/main/java/ru/bizsupport/entity/TenderStatus.java
 /home/faezzy4/Downloads/bizsupport_full_project/bizsupport_final/src/main/java/ru/bizsupport/entity/User.java
 /home/faezzy4/Downloads/bizsupport_full_project/bizsupport_final/src/main/java/ru/bizsupport/entity/UserFavorite.java
 /home/faezzy4/Downloads/bizsupport_full_project/bizsupport_final/src/main/java/ru/bizsupport/repository/ChecklistRepository.java
@@ -35,11 +45,13 @@
 /home/faezzy4/Downloads/bizsupport_full_project/bizsupport_final/src/main/java/ru/bizsupport/repository/RiskCardRepository.java
 /home/faezzy4/Downloads/bizsupport_full_project/bizsupport_final/src/main/java/ru/bizsupport/repository/TaxObligationRepository.java
 /home/faezzy4/Downloads/bizsupport_full_project/bizsupport_final/src/main/java/ru/bizsupport/repository/TaxRegimeRepository.java
+/home/faezzy4/Downloads/bizsupport_full_project/bizsupport_final/src/main/java/ru/bizsupport/repository/TenderRepository.java
 /home/faezzy4/Downloads/bizsupport_full_project/bizsupport_final/src/main/java/ru/bizsupport/repository/UserFavoriteRepository.java
 /home/faezzy4/Downloads/bizsupport_full_project/bizsupport_final/src/main/java/ru/bizsupport/repository/UserRepository.java
 /home/faezzy4/Downloads/bizsupport_full_project/bizsupport_final/src/main/java/ru/bizsupport/security/jwt/JwtAuthFilter.java
 /home/faezzy4/Downloads/bizsupport_full_project/bizsupport_final/src/main/java/ru/bizsupport/security/jwt/JwtUtils.java
 /home/faezzy4/Downloads/bizsupport_full_project/bizsupport_final/src/main/java/ru/bizsupport/security/service/UserDetailsServiceImpl.java
+/home/faezzy4/Downloads/bizsupport_full_project/bizsupport_final/src/main/java/ru/bizsupport/service/AssistantService.java
 /home/faezzy4/Downloads/bizsupport_full_project/bizsupport_final/src/main/java/ru/bizsupport/service/AuthService.java
 /home/faezzy4/Downloads/bizsupport_full_project/bizsupport_final/src/main/java/ru/bizsupport/service/CompanyProfileService.java
 /home/faezzy4/Downloads/bizsupport_full_project/bizsupport_final/src/main/java/ru/bizsupport/service/FavoriteService.java
@@ -48,3 +60,6 @@
 /home/faezzy4/Downloads/bizsupport_full_project/bizsupport_final/src/main/java/ru/bizsupport/service/ProcurementService.java
 /home/faezzy4/Downloads/bizsupport_full_project/bizsupport_final/src/main/java/ru/bizsupport/service/TaxCalculatorService.java
 /home/faezzy4/Downloads/bizsupport_full_project/bizsupport_final/src/main/java/ru/bizsupport/service/TaxService.java
+/home/faezzy4/Downloads/bizsupport_full_project/bizsupport_final/src/main/java/ru/bizsupport/service/TenderService.java
+/home/faezzy4/Downloads/bizsupport_full_project/bizsupport_final/src/main/java/ru/bizsupport/service/provider/MockTenderProvider.java
+/home/faezzy4/Downloads/bizsupport_full_project/bizsupport_final/src/main/java/ru/bizsupport/service/provider/TenderProvider.java

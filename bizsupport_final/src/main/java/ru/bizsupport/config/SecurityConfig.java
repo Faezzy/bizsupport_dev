@@ -65,6 +65,8 @@ public class SecurityConfig {
                     "/v3/api-docs/**", "/v3/api-docs.yaml"
                 ).permitAll()
                 .requestMatchers("/admin/**").hasRole("ADMIN")
+                    .requestMatchers("/assistant/**").authenticated()           // ← ДОБАВИТЬ
+                    .requestMatchers("/api/assistant/**").authenticated()       // ← ДОБАВИТЬ
                 .anyRequest().authenticated()
             )
             .formLogin(form -> form

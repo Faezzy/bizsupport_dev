@@ -7,8 +7,8 @@ package ru.bizsupport.entity;
 public enum EntityType {
     TAX_REGIME("Налоговый режим"),
     PROCUREMENT("Сценарий закупки"),
-    RISK("Карточка риска");
-
+    RISK("Карточка риска"),
+    TENDER("Тендер");
     private final String displayName;
     EntityType(String d) { this.displayName = d; }
     public String getDisplayName() { return displayName; }
