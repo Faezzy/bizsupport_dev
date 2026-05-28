@@ -18,7 +18,7 @@ public:
         auto hash = password_utils::hash_password(password);
         auto user = repos_.save_user(email, hash, full_name);
         auto token = jwt_.generate_token(email);
-        return {{"token", token}, {"email", user.email}, {"fullName", user.full_name}};
+        return {{"token", token}, {"email", user.email}, {"fullName", user.full_name}, {"role", role_to_string(user.role)}};
     }
 
     // Login. Throws if credentials invalid.
@@ -30,7 +30,7 @@ public:
             throw std::runtime_error("Invalid credentials");
         }
         auto token = jwt_.generate_token(email);
-        return {{"token", token}, {"email", user_opt->email}, {"fullName", user_opt->full_name}};
+        return {{"token", token}, {"email", user_opt->email}, {"fullName", user_opt->full_name}, {"role", role_to_string(user_opt->role)}};
     }
 
     // Get current user from JWT token. Returns nullopt if invalid.

@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BizSupport — Налоговые режимы</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <script src="/js/common.js"></script>
+  <script>
+    if (requireAuth()) {
+      const main = renderShell('/tax.html');
+
+      main.innerHTML = `
+        <div class="page-header">
+          <div>
+            <h1>Налоговые режимы</h1>
+            <p>Сравните режимы налогообложения и выберите подходящий</p>
+          </div>
+        </div>
+
+        <div id="alert"></div>
+
+        <div class="card">
+          <h3>Подбор режима</h3>
+          <form id="recommendForm">
+            <div class="grid grid-3">
+              <div class="form-group">
+                <label>Форма</label>
+                <select name="companyType">
+                  <option value="IP">ИП</option>
+                  <option value="OOO">ООО</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Сотрудники</label>
+                <input type="number" name="employees" min="0" value="5">
+              </div>
+              <div class="form-group">
+                <label>Годовой доход, ₽</label>
+                <input type="number" name="revenue" min="0" value="1000000">
+              </div>
+            </div>
+            <div class="flex">
+              <button type="submit" class="btn">Подобрать</button>
+              <button type="button" id="clearRecommend" class="btn secondary">Сбросить</button>
+            </div>
+          </form>
+        </div>
+
+        <div id="regimes">
+          <div class="loader">Загрузка…</div>
+        </div>`;
+
+      const alertBox = document.getElementById('alert');
+      const regimesEl = document.getElementById('regimes');
+      const recommendForm = document.getElementById('recommendForm');
+
+      let allRegimes = [];
+      let recommendedCodes = new Set();
+
+      function showAlert(msg, type = 'error') {
+        alertBox.innerHTML = `<div class="alert ${type}">${escapeHtml(msg)}</div>`;
+      }
+
+      function renderRegimes() {
+        if (!allRegimes.length) {
+          regimesEl.innerHTML = `<div class="empty">Налоговые режимы не найдены</div>`;
+          return;
+        }
+        const cards = allRegimes.map(r => {
+          const recommended = recommendedCodes.has(r.code)
+            ? '<span class="badge green">Рекомендовано</span>' : '';
+          const nkRef = r.nkRef
+            ? `<div class="muted" style="font-size:.82rem; margin-top:8px">${escapeHtml(r.nkRef)}</div>`
+            : '';
+          return `
+            <div class="card">
+              <div class="flex-between" style="margin-bottom:8px">
+                <h3 style="margin:0">${escapeHtml(r.name)}</h3>
+                ${recommended}
+              </div>
+              <div class="muted">${escapeHtml(r.description || '')}</div>
+              ${nkRef}
+              <div class="flex mt">
+                <button class="btn secondary sm" data-detail="${escapeHtml(r.code)}">Подробнее</button>
+                <button class="btn sm" data-select="${escapeHtml(r.code)}">Выбрать режим</button>
+              </div>
+              <div class="detail" id="detail-${escapeHtml(r.code)}"></div>
+            </div>`;
+        }).join('');
+
+        regimesEl.innerHTML = `<div class="grid grid-2">${cards}</div>`;
+
+        regimesEl.querySelectorAll('[data-detail]').forEach(btn => {
+          btn.addEventListener('click', () => loadDetail(btn.getAttribute('data-detail')));
+        });
+        regimesEl.querySelectorAll('[data-select]').forEach(btn => {
+          btn.addEventListener('click', () => selectRegime(btn.getAttribute('data-select'), btn));
+        });
+      }
+
+      async function loadDetail(code) {
+        const box = document.getElementById('detail-' + code);
+        if (!box) return;
+        // Toggle: collapse if already open.
+        if (box.dataset.open === '1') {
+          box.innerHTML = '';
+          box.dataset.open = '0';
+          return;
+        }
+        box.dataset.open = '1';
+        box.innerHTML = `<div class="loader" style="padding:16px">Загрузка…</div>`;
+        try {
+          const d = await api('/tax/regimes/' + encodeURIComponent(code));
+          const obligations = Array.isArray(d.obligations) ? d.obligations : [];
+          const deadlines = Array.isArray(d.deadlines) ? d.deadlines : [];
+
+          let obligationsHtml;
+          if (obligations.length) {
+            const rows = obligations.map(o => {
+              const desc = o.fnsServiceUrl
+                ? `${escapeHtml(o.description || '')} <a href="${escapeHtml(o.fnsServiceUrl)}" target="_blank" rel="noopener">Сервис ФНС</a>`
+                : escapeHtml(o.description || '');
+              const rate = o.rate != null ? escapeHtml(String(o.rate)) : '—';
+              return `<tr><td>${escapeHtml(o.taxName || '')}</td><td>${rate}</td><td>${desc}</td></tr>`;
+            }).join('');
+            obligationsHtml = `
+              <table class="table">
+                <thead><tr><th>Налог</th><th>Ставка</th><th>Описание</th></tr></thead>
+                <tbody>${rows}</tbody>
+              </table>`;
+          } else {
+            obligationsHtml = `<div class="muted">Налоговые обязательства не указаны</div>`;
+          }
+
+          let deadlinesHtml;
+          if (deadlines.length) {
+            deadlinesHtml = `<ul style="margin:8px 0 0 18px">` +
+              deadlines.map(dl => {
+                const repeat = dl.repeatRule ? ` <span class="muted">(${escapeHtml(dl.repeatRule)})</span>` : '';
+                return `<li><strong>${escapeHtml(dl.title || '')}</strong> — ${fmtDate(dl.dueDate)}${repeat}</li>`;
+              }).join('') +
+              `</ul>`;
+          } else {
+            deadlinesHtml = `<div class="muted">Сроки не указаны</div>`;
+          }
+
+          box.innerHTML = `
+            <div style="border-top:1px solid var(--border); margin-top:14px; padding-top:14px">
+              <h4 style="margin-bottom:8px">Налоговые обязательства</h4>
+              ${obligationsHtml}
+              <h4 style="margin:16px 0 6px">Сроки и отчётность</h4>
+              ${deadlinesHtml}
+            </div>`;
+        } catch (err) {
+          box.innerHTML = `<div class="alert error" style="margin-top:12px">${escapeHtml(err.message || 'Не удалось загрузить детали')}</div>`;
+        }
+      }
+
+      async function selectRegime(code, btn) {
+        alertBox.innerHTML = '';
+        const original = btn.textContent;
+        btn.disabled = true;
+        try {
+          await api('/tax/set-regime', { method: 'POST', body: { regimeCode: code } });
+          showAlert('Режим выбран и сохранён', 'ok');
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        } catch (err) {
+          showAlert(err.message || 'Не удалось выбрать режим. Возможно, не заполнен профиль компании.');
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        } finally {
+          btn.disabled = false;
+          btn.textContent = original;
+        }
+      }
+
+      recommendForm.onsubmit = async (e) => {
+        e.preventDefault();
+        alertBox.innerHTML = '';
+        const f = new FormData(recommendForm);
+        const params = new URLSearchParams({
+          companyType: f.get('companyType'),
+          employees: f.get('employees') || '0',
+          revenue: f.get('revenue') || '0'
+        });
+        try {
+          const recs = await api('/tax/recommend?' + params.toString());
+          recommendedCodes = new Set((Array.isArray(recs) ? recs : []).map(r => r.code));
+          if (!recommendedCodes.size) {
+            showAlert('Подходящих режимов не найдено', 'ok');
+          }
+          renderRegimes();
+        } catch (err) {
+          showAlert(err.message || 'Не удалось подобрать режим');
+        }
+      };
+
+      document.getElementById('clearRecommend').onclick = () => {
+        recommendedCodes = new Set();
+        alertBox.innerHTML = '';
+        renderRegimes();
+      };
+
+      (async () => {
+        try {
+          const data = await api('/tax/regimes');
+          allRegimes = Array.isArray(data) ? data : [];
+          renderRegimes();
+        } catch (err) {
+          regimesEl.innerHTML = '';
+          showAlert(err.message || 'Не удалось загрузить режимы');
+        }
+      })();
+    }
+  </script>
+</body>
+</html>

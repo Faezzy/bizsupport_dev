@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BizSupport — Тендеры</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <script src="/js/common.js"></script>
+  <script>
+    if (requireAuth()) {
+      const main = renderShell('/tenders.html');
+
+      const PAGE_SIZE = 20;
+      // Current state of filters + paging.
+      const state = {
+        query: '',
+        lawType: '',
+        status: '',
+        region: '',
+        category: '',
+        mspOnly: false,
+        page: 0
+      };
+      // Cached so region/category selects survive re-renders.
+      let availableRegions = [];
+      let availableCategories = [];
+      let regionsLoaded = false;
+
+      main.innerHTML = `
+        <div class="page-header">
+          <div>
+            <h1>Тендеры и госзакупки</h1>
+            <p>Поиск и анализ закупок по 44-ФЗ, 223-ФЗ и коммерческих тендеров</p>
+          </div>
+        </div>
+        <div id="statsRow" class="grid grid-4 mb"></div>
+        <div id="view"></div>`;
+
+      const statsRow = document.getElementById('statsRow');
+      const view = document.getElementById('view');
+
+      // ────────────────────────────── Stats ──────────────────────────────
+      async function loadStats() {
+        try {
+          const s = await api('/tenders/stats');
+          statsRow.innerHTML = `
+            <div class="stat"><div class="value">${s.total ?? 0}</div><div class="label">Всего</div></div>
+            <div class="stat"><div class="value">${s.published ?? 0}</div><div class="label">Опубликовано</div></div>
+            <div class="stat"><div class="value">${s.underReview ?? 0}</div><div class="label">На рассмотрении</div></div>
+            <div class="stat"><div class="value">${s.completed ?? 0}</div><div class="label">Завершено</div></div>`;
+        } catch (err) {
+          statsRow.innerHTML = `<div class="alert error" style="grid-column:1/-1">${escapeHtml(err.message || 'Не удалось загрузить статистику')}</div>`;
+        }
+      }
+
+      // ──────────────────────────── List view ────────────────────────────
+      function renderListShell() {
+        const opt = (val, label, cur) =>
+          `<option value="${val}" ${cur === val ? 'selected' : ''}>${label}</option>`;
+
+        const regionOpts = [opt('', 'Все регионы', state.region)].concat(
+          availableRegions.map(r => opt(escapeHtml(r), escapeHtml(r), state.region))
+        ).join('');
+        const categoryOpts = [opt('', 'Все категории', state.category)].concat(
+          availableCategories.map(c => opt(escapeHtml(c), escapeHtml(c), state.category))
+        ).join('');
+
+        view.innerHTML = `
+          <div class="card">
+            <div class="grid grid-3">
+              <div class="form-group">
+                <label>Поиск</label>
+                <input type="text" id="fQuery" placeholder="Название, заказчик, реестровый №" value="${escapeHtml(state.query)}">
+              </div>
+              <div class="form-group">
+                <label>Закон</label>
+                <select id="fLaw">
+                  ${opt('', 'Все', state.lawType)}
+                  ${opt('FZ_44', '44-ФЗ', state.lawType)}
+                  ${opt('FZ_223', '223-ФЗ', state.lawType)}
+                  ${opt('COMMERCIAL', 'Коммерческий', state.lawType)}
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Статус</label>
+                <select id="fStatus">
+                  ${opt('', 'Все', state.status)}
+                  ${opt('PUBLISHED', 'Опубликован', state.status)}
+                  ${opt('UNDER_REVIEW', 'На рассмотрении', state.status)}
+                  ${opt('AUCTION', 'Аукцион', state.status)}
+                  ${opt('COMPLETED', 'Завершён', state.status)}
+                  ${opt('CANCELLED', 'Отменён', state.status)}
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Регион</label>
+                <select id="fRegion">${regionOpts}</select>
+              </div>
+              <div class="form-group">
+                <label>Категория</label>
+                <select id="fCategory">${categoryOpts}</select>
+              </div>
+              <div class="form-group">
+                <label>&nbsp;</label>
+                <label class="flex" style="color:var(--text)">
+                  <input type="checkbox" id="fMsp" style="width:auto" ${state.mspOnly ? 'checked' : ''}>
+                  Только для МСП
+                </label>
+              </div>
+            </div>
+            <div class="flex">
+              <button class="btn" id="btnSearch">Найти</button>
+              <button class="btn secondary" id="btnReset">Сбросить</button>
+            </div>
+          </div>
+          <div id="results"><div class="loader">Загрузка…</div></div>`;
+
+        document.getElementById('btnSearch').onclick = () => {
+          state.query = document.getElementById('fQuery').value.trim();
+          state.lawType = document.getElementById('fLaw').value;
+          state.status = document.getElementById('fStatus').value;
+          state.region = document.getElementById('fRegion').value;
+          state.category = document.getElementById('fCategory').value;
+          state.mspOnly = document.getElementById('fMsp').checked;
+          state.page = 0;
+          loadResults();
+        };
+        document.getElementById('btnReset').onclick = () => {
+          state.query = ''; state.lawType = ''; state.status = '';
+          state.region = ''; state.category = ''; state.mspOnly = false; state.page = 0;
+          renderListShell();
+          loadResults();
+        };
+        // Enter in search field triggers search.
+        document.getElementById('fQuery').addEventListener('keydown', e => {
+          if (e.key === 'Enter') document.getElementById('btnSearch').click();
+        });
+      }
+
+      function buildQuery() {
+        const p = new URLSearchParams();
+        if (state.query) p.set('query', state.query);
+        if (state.lawType) p.set('lawType', state.lawType);
+        if (state.status) p.set('status', state.status);
+        if (state.region) p.set('region', state.region);
+        if (state.category) p.set('category', state.category);
+        if (state.mspOnly) p.set('mspOnly', 'true');
+        p.set('page', String(state.page));
+        p.set('size', String(PAGE_SIZE));
+        return p.toString();
+      }
+
+      async function loadResults() {
+        const results = document.getElementById('results');
+        results.innerHTML = `<div class="loader">Загрузка…</div>`;
+        try {
+          const data = await api('/tenders?' + buildQuery());
+
+          // Populate region/category selects once we have them.
+          if (!regionsLoaded && (data.availableRegions || data.availableCategories)) {
+            availableRegions = data.availableRegions || [];
+            availableCategories = data.availableCategories || [];
+            regionsLoaded = true;
+            // Re-render the filter shell so the new options appear, then refill results below.
+            renderListShell();
+          }
+
+          const items = data.items || [];
+          const resultsEl = document.getElementById('results');
+
+          if (!items.length) {
+            resultsEl.innerHTML = `<div class="empty">Тендеры не найдены. Измените параметры поиска.</div>`;
+            return;
+          }
+
+          const rows = items.map(t => `
+            <tr data-id="${escapeHtml(String(t.id))}" style="cursor:pointer">
+              <td>${escapeHtml(t.registryNumber || '—')}</td>
+              <td>${escapeHtml(t.title || '—')}</td>
+              <td>${escapeHtml(t.customerName || '—')}</td>
+              <td>${lawBadge(t.lawType)}</td>
+              <td>${money(t.initialPrice)}</td>
+              <td>${escapeHtml(t.region || '—')}</td>
+              <td>${fmtDate(t.submissionDeadline)}</td>
+              <td>${statusBadge(t.status)}</td>
+            </tr>`).join('');
+
+          const totalPages = data.totalPages || 1;
+          const curPage = data.currentPage != null ? data.currentPage : state.page;
+          const totalItems = data.totalItems != null ? data.totalItems : items.length;
+
+          resultsEl.innerHTML = `
+            <div class="card">
+              <div class="flex-between mb">
+                <span class="muted">Найдено: ${totalItems}</span>
+              </div>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Реестровый №</th><th>Название</th><th>Заказчик</th>
+                    <th>Закон</th><th>НМЦК</th><th>Регион</th>
+                    <th>Дедлайн</th><th>Статус</th>
+                  </tr>
+                </thead>
+                <tbody id="tbody">${rows}</tbody>
+              </table>
+              <div class="flex-between mt">
+                <button class="btn secondary sm" id="prevPage" ${curPage <= 0 ? 'disabled' : ''}>← Назад</button>
+                <span class="muted">Страница ${curPage + 1} из ${totalPages}</span>
+                <button class="btn secondary sm" id="nextPage" ${curPage >= totalPages - 1 ? 'disabled' : ''}>Вперёд →</button>
+              </div>
+            </div>`;
+
+          resultsEl.querySelectorAll('#tbody tr').forEach(tr => {
+            tr.onclick = () => showDetail(tr.getAttribute('data-id'));
+          });
+          const prev = document.getElementById('prevPage');
+          const next = document.getElementById('nextPage');
+          if (prev) prev.onclick = () => { if (state.page > 0) { state.page--; loadResults(); } };
+          if (next) next.onclick = () => { if (state.page < totalPages - 1) { state.page++; loadResults(); } };
+        } catch (err) {
+          const resultsEl = document.getElementById('results');
+          if (resultsEl) resultsEl.innerHTML = `<div class="alert error">${escapeHtml(err.message || 'Не удалось загрузить тендеры')}</div>`;
+        }
+      }
+
+      // ─────────────────────────── Detail view ───────────────────────────
+      async function showDetail(id) {
+        view.innerHTML = `<div class="loader">Загрузка…</div>`;
+        try {
+          const t = await api('/tenders/' + encodeURIComponent(id));
+
+          const row = (label, value) =>
+            `<div class="form-group" style="margin-bottom:10px">
+               <label>${label}</label>
+               <div>${value}</div>
+             </div>`;
+
+          const sourceLink = t.sourceUrl
+            ? `<a href="${escapeHtml(t.sourceUrl)}" target="_blank" rel="noopener" class="btn sm">Открыть в ЕИС</a>`
+            : '';
+
+          view.innerHTML = `
+            <div class="flex-between mb">
+              <button class="btn secondary sm" id="backBtn">← К списку</button>
+              ${sourceLink}
+            </div>
+            <div class="card">
+              <div class="flex-between mb">
+                <h2 style="margin:0">${escapeHtml(t.title || 'Без названия')}</h2>
+                ${statusBadge(t.status)}
+              </div>
+              <div class="pill-row mb">
+                ${lawBadge(t.lawType)}
+                ${t.mspOnly ? '<span class="badge yellow">Только МСП</span>' : ''}
+              </div>
+              <div class="grid grid-2">
+                ${row('Реестровый №', escapeHtml(t.registryNumber || '—'))}
+                ${row('Способ закупки', escapeHtml(t.procurementMethod || '—'))}
+                ${row('Заказчик', escapeHtml(t.customerName || '—'))}
+                ${row('ИНН заказчика', escapeHtml(t.customerInn || '—'))}
+                ${row('НМЦК', money(t.initialPrice) + (t.currency ? ' ' + escapeHtml(t.currency) : ''))}
+                ${row('Обеспечение заявки', money(t.applicationSecurity))}
+                ${row('Обеспечение контракта', money(t.contractSecurity))}
+                ${row('Регион', escapeHtml(t.region || '—'))}
+                ${row('Код ОКПД', escapeHtml(t.okpdCode || '—'))}
+                ${row('Категория', escapeHtml(t.category || '—'))}
+                ${row('Опубликовано', fmtDate(t.publishedAt))}
+                ${row('Приём заявок до', fmtDate(t.submissionDeadline))}
+                ${row('Дата аукциона', fmtDate(t.auctionDate))}
+                ${row('Источник', escapeHtml(t.source || '—'))}
+              </div>
+              ${row('Описание', escapeHtml(t.description || '—'))}
+            </div>`;
+
+          document.getElementById('backBtn').onclick = () => {
+            renderListShell();
+            loadResults();
+          };
+        } catch (err) {
+          view.innerHTML = `
+            <button class="btn secondary sm mb" id="backBtn">← К списку</button>
+            <div class="alert error">${escapeHtml(err.message || 'Не удалось загрузить тендер')}</div>`;
+          document.getElementById('backBtn').onclick = () => { renderListShell(); loadResults(); };
+        }
+      }
+
+      // ─────────────────────────────── Init ──────────────────────────────
+      loadStats();
+      renderListShell();
+      loadResults();
+    }
+  </script>
+</body>
+</html>

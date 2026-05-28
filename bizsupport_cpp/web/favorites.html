@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BizSupport — Избранное</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <script src="/js/common.js"></script>
+  <script>
+    if (requireAuth()) {
+      const main = renderShell('/favorites.html');
+
+      const FILTERS = [
+        { type: null, label: 'Все' },
+        { type: 'TAX_REGIME', label: 'Налоговые режимы' },
+        { type: 'PROCUREMENT', label: 'Госзакупки' },
+        { type: 'RISK', label: 'Риски' },
+        { type: 'TENDER', label: 'Тендеры' },
+      ];
+
+      const TYPE_BADGE = {
+        TAX_REGIME: ['blue', 'Налоговый режим'],
+        PROCUREMENT: ['green', 'Госзакупка'],
+        RISK: ['yellow', 'Риск'],
+        TENDER: ['gray', 'Тендер'],
+      };
+
+      function typeBadge(type) {
+        const [cls, label] = TYPE_BADGE[type] || ['gray', type];
+        return `<span class="badge ${cls}">${escapeHtml(label)}</span>`;
+      }
+
+      let activeType = null;
+
+      main.innerHTML = `
+        <div class="page-header">
+          <div>
+            <h1>Избранное</h1>
+            <p>Сохранённые режимы, закупки, риски и тендеры</p>
+          </div>
+        </div>
+        <div class="pill-row mb" id="filters"></div>
+        <div id="alert"></div>
+        <div id="content">
+          <div class="loader">Загрузка…</div>
+        </div>`;
+
+      const filters = document.getElementById('filters');
+      const content = document.getElementById('content');
+      const alertBox = document.getElementById('alert');
+
+      function showError(err) {
+        alertBox.innerHTML = `<div class="alert error">${escapeHtml(err.message || 'Не удалось загрузить избранное')}</div>`;
+      }
+
+      function renderFilters() {
+        filters.innerHTML = FILTERS.map((f, i) => {
+          const active = f.type === activeType;
+          const cls = active ? 'btn sm' : 'btn secondary sm';
+          return `<button class="${cls}" data-idx="${i}">${escapeHtml(f.label)}</button>`;
+        }).join('');
+        filters.querySelectorAll('[data-idx]').forEach(btn => {
+          btn.onclick = () => {
+            activeType = FILTERS[Number(btn.getAttribute('data-idx'))].type;
+            renderFilters();
+            load();
+          };
+        });
+      }
+
+      function renderList(items) {
+        if (!items.length) {
+          content.innerHTML = `<div class="empty">Список избранного пуст</div>`;
+          return;
+        }
+        content.innerHTML = `<div class="grid grid-3">` + items.map(fav => `
+          <div class="card">
+            <div class="mb">${typeBadge(fav.entityType)}</div>
+            <div><strong>ID #${escapeHtml(fav.entityId)}</strong></div>
+            <div class="muted" style="font-size:.82rem;margin-top:6px">${fmtDate(fav.createdAt)}</div>
+            <button class="btn danger sm mt" data-type="${escapeHtml(fav.entityType)}" data-id="${escapeHtml(fav.entityId)}">
+              Удалить из избранного
+            </button>
+          </div>`).join('') + `</div>`;
+
+        content.querySelectorAll('[data-id]').forEach(btn => {
+          btn.onclick = async () => {
+            const entityType = btn.getAttribute('data-type');
+            const entityId = Number(btn.getAttribute('data-id'));
+            btn.disabled = true;
+            try {
+              await api('/favorites/toggle', { method: 'POST', body: { entityType, entityId } });
+              load();
+            } catch (err) { btn.disabled = false; showError(err); }
+          };
+        });
+      }
+
+      async function load() {
+        alertBox.innerHTML = '';
+        content.innerHTML = `<div class="loader">Загрузка…</div>`;
+        try {
+          const path = activeType ? '/favorites/type/' + activeType : '/favorites';
+          const items = await api(path);
+          renderList(items || []);
+        } catch (err) {
+          content.innerHTML = '';
+          showError(err);
+        }
+      }
+
+      renderFilters();
+      load();
+    }
+  </script>
+</body>
+</html>

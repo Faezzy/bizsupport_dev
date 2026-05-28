@@ -195,10 +195,11 @@ CREATE INDEX IF NOT EXISTS idx_tender_deadline ON tenders(submission_deadline);
 -- ------------------------------------------------------------
 -- 1. Admin user
 -- ------------------------------------------------------------
+-- Password is 'admin123' hashed with PBKDF2-SHA256 (see password_utils.hpp)
 INSERT INTO users (email, password, full_name, role)
 VALUES (
     'admin@bizsupport.ru',
-    '$pbkdf2$a1b2c3d4e5f6a7b8a1b2c3d4e5f6a7b8$e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+    '$pbkdf2$f670c7b4e2c59954e7bc0660ab06687b$5025d722b4e6f406e30c3c5601e003cc926adf02c8edbcbcb9d13a5a7180e796',
     'Администратор',
     'ADMIN'
 ) ON CONFLICT (email) DO NOTHING;

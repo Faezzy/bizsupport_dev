@@ -11,7 +11,7 @@ public:
 
     // Find company profile by user ID
     std::optional<CompanyProfile> find_by_user_id(int64_t user_id) {
-        return repos_.find_company_profile_by_user_id(user_id);
+        return repos_.find_profile_by_user_id(user_id);
     }
 
     // Create or update company profile
@@ -37,7 +37,7 @@ public:
 
     // Get current tax regimes for a company
     std::vector<CompanyTaxRegime> get_current_regimes(int64_t company_id) {
-        return repos_.get_current_regimes(company_id);
+        return repos_.find_current_regimes(company_id);
     }
 
 private:

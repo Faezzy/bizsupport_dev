@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BizSupport — Ассистент</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <script src="/js/common.js"></script>
+  <script>
+    if (requireAuth()) {
+      const main = renderShell('/assistant.html');
+
+      const WELCOME = 'Здравствуйте! Я помогу с вопросами по налогам, госзакупкам и ведению бизнеса в России.';
+
+      main.innerHTML = `
+        <div class="page-header">
+          <div>
+            <h1>ИИ-Ассистент</h1>
+            <p>Задайте вопрос по налогам, закупкам или ведению бизнеса</p>
+          </div>
+        </div>
+        <div id="statusBox"></div>
+        <div id="errBox"></div>
+        <div class="card">
+          <div class="chat-box">
+            <div class="chat-messages" id="messages">
+              <div class="loader">Загрузка…</div>
+            </div>
+            <div class="chat-input">
+              <input type="text" id="chatInput" placeholder="Введите сообщение…" autocomplete="off">
+              <button class="btn" id="sendBtn">Отправить</button>
+              <button class="btn secondary" id="clearBtn">Очистить</button>
+            </div>
+          </div>
+        </div>`;
+
+      const messages = document.getElementById('messages');
+      const input = document.getElementById('chatInput');
+      const sendBtn = document.getElementById('sendBtn');
+      const clearBtn = document.getElementById('clearBtn');
+      const statusBox = document.getElementById('statusBox');
+      const errBox = document.getElementById('errBox');
+
+      function scrollToBottom() {
+        messages.scrollTop = messages.scrollHeight;
+      }
+
+      function appendMessage(role, content) {
+        const div = document.createElement('div');
+        div.className = 'msg ' + (role === 'user' ? 'user' : 'assistant');
+        div.textContent = content;
+        messages.appendChild(div);
+        scrollToBottom();
+        return div;
+      }
+
+      function showError(msg) {
+        errBox.innerHTML = `<div class="alert error">${escapeHtml(msg)}</div>`;
+      }
+
+      function setBusy(busy) {
+        input.disabled = busy;
+        sendBtn.disabled = busy;
+        clearBtn.disabled = busy;
+      }
+
+      // ─────────────────────────────── Status ──────────────────────────────
+      async function loadStatus() {
+        try {
+          const st = await api('/assistant/status');
+          if (st && st.configured === false) {
+            statusBox.innerHTML = `<div class="alert error">Ассистент не настроен (укажите API-ключ в config.ini). Сообщения можно отправлять, но ответ будет содержать ошибку.</div>`;
+          }
+        } catch (err) {
+          // Status is non-critical; ignore failures silently.
+        }
+      }
+
+      // ─────────────────────────────── History ─────────────────────────────
+      async function loadHistory() {
+        try {
+          const history = await api('/assistant/history');
+          messages.innerHTML = '';
+          if (!history || !history.length) {
+            appendMessage('assistant', WELCOME);
+          } else {
+            history.forEach(m => appendMessage(m.role, m.content || ''));
+          }
+        } catch (err) {
+          messages.innerHTML = '';
+          appendMessage('assistant', WELCOME);
+          showError(err.message || 'Не удалось загрузить историю');
+        }
+      }
+
+      // ──────────────────────────────── Send ──────────────────────────────
+      async function send() {
+        const text = input.value.trim();
+        if (!text) return;
+        errBox.innerHTML = '';
+        appendMessage('user', text);
+        input.value = '';
+        setBusy(true);
+
+        const typing = appendMessage('assistant', 'печатает…');
+        try {
+          const res = await api('/assistant/chat', { method: 'POST', body: { message: text } });
+          typing.textContent = (res && res.reply != null) ? res.reply : 'Пустой ответ от ассистента.';
+          if (res && res.error) typing.classList.add('msg');
+        } catch (err) {
+          typing.textContent = 'Ошибка: ' + (err.message || 'не удалось получить ответ');
+          showError(err.message || 'Не удалось отправить сообщение');
+        } finally {
+          setBusy(false);
+          scrollToBottom();
+          input.focus();
+        }
+      }
+
+      // ──────────────────────────────── Clear ─────────────────────────────
+      async function clearHistory() {
+        errBox.innerHTML = '';
+        setBusy(true);
+        try {
+          await api('/assistant/history', { method: 'DELETE' });
+          messages.innerHTML = '';
+          appendMessage('assistant', WELCOME);
+        } catch (err) {
+          showError(err.message || 'Не удалось очистить историю');
+        } finally {
+          setBusy(false);
+          input.focus();
+        }
+      }
+
+      // ─────────────────────────────── Bind ──────────────────────────────
+      sendBtn.onclick = send;
+      clearBtn.onclick = clearHistory;
+      input.addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); send(); }
+      });
+
+      // ─────────────────────────────── Init ──────────────────────────────
+      loadStatus();
+      loadHistory();
+    }
+  </script>
+</body>
+</html>

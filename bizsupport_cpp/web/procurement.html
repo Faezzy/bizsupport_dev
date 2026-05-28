@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BizSupport — Госзакупки</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <script src="/js/common.js"></script>
+  <script>
+    if (requireAuth()) {
+      const main = renderShell('/procurement.html');
+
+      main.innerHTML = `
+        <div class="page-header">
+          <div>
+            <h1>Госзакупки: сценарии и чек-листы</h1>
+            <p>Готовые сценарии участия в закупках и персональные чек-листы</p>
+          </div>
+        </div>
+        <div class="flex mb">
+          <button class="btn secondary sm" id="tabScenarios">Сценарии</button>
+          <button class="btn secondary sm" id="tabChecklists">Мои чек-листы</button>
+        </div>
+        <div id="view"></div>`;
+
+      const view = document.getElementById('view');
+      const tabScenarios = document.getElementById('tabScenarios');
+      const tabChecklists = document.getElementById('tabChecklists');
+
+      function setActiveTab(tab) {
+        // Active tab is solid (.btn), inactive tabs get the .secondary look.
+        tabScenarios.className = 'btn sm' + (tab === 'scenarios' ? '' : ' secondary');
+        tabChecklists.className = 'btn sm' + (tab === 'checklists' ? '' : ' secondary');
+      }
+
+      const riskBadgeClass = (type) =>
+        ({ FINANCIAL: 'red', LEGAL: 'yellow', PROCEDURAL: 'blue' }[type] || 'gray');
+
+      // ───────────────────────────── Scenarios ─────────────────────────────
+      async function loadScenarios() {
+        setActiveTab('scenarios');
+        view.innerHTML = `<div class="loader">Загрузка…</div>`;
+        try {
+          const scenarios = await api('/procurement/scenarios');
+          if (!scenarios || !scenarios.length) {
+            view.innerHTML = `<div class="empty">Сценарии пока недоступны.</div>`;
+            return;
+          }
+          const cards = scenarios.map(s => {
+            const hasRange = s.amountMin != null || s.amountMax != null;
+            const range = hasRange
+              ? `<div class="muted mb">Сумма: ${money(s.amountMin)} – ${money(s.amountMax)}</div>`
+              : '';
+            return `
+              <div class="card">
+                <div class="flex-between mb">
+                  <h3 style="margin:0">${escapeHtml(s.title || '')}</h3>
+                </div>
+                <div class="pill-row mb">
+                  <span class="badge blue">${escapeHtml(s.lawTypeDisplay || s.lawType || '')}</span>
+                  ${s.mspOnly ? '<span class="badge yellow">Только МСП</span>' : ''}
+                </div>
+                <p class="mb">${escapeHtml(s.description || '')}</p>
+                ${range}
+                <button class="btn sm" data-id="${escapeHtml(String(s.id))}">Подробнее</button>
+              </div>`;
+          }).join('');
+          view.innerHTML = `<div class="grid grid-2">${cards}</div>`;
+          view.querySelectorAll('button[data-id]').forEach(btn => {
+            btn.onclick = () => showScenario(btn.getAttribute('data-id'));
+          });
+        } catch (err) {
+          view.innerHTML = `<div class="alert error">${escapeHtml(err.message || 'Не удалось загрузить сценарии')}</div>`;
+        }
+      }
+
+      async function showScenario(id) {
+        view.innerHTML = `<div class="loader">Загрузка…</div>`;
+        try {
+          const s = await api('/procurement/scenarios/' + encodeURIComponent(id));
+          const risks = s.risks || [];
+          const templates = s.templates || [];
+
+          const risksHtml = risks.length
+            ? risks.map(r => `
+                <div class="card">
+                  <div class="flex-between mb">
+                    <strong>${escapeHtml(r.title || '')}</strong>
+                    <span class="badge ${riskBadgeClass(r.riskType)}">${escapeHtml(r.riskTypeDisplay || r.riskType || '')}</span>
+                  </div>
+                  <p class="mb">${escapeHtml(r.description || '')}</p>
+                  ${r.consequence ? `<div class="mb"><span class="muted">Последствие:</span> ${escapeHtml(r.consequence)}</div>` : ''}
+                  ${r.recommendation ? `<div><span class="muted">Рекомендация:</span> ${escapeHtml(r.recommendation)}</div>` : ''}
+                </div>`).join('')
+            : `<div class="empty">Риски не описаны.</div>`;
+
+          const templatesHtml = templates.length
+            ? templates.map(t => `
+                <div class="card flex-between">
+                  <div>
+                    <strong>${escapeHtml(t.title || '')}</strong>
+                    <div class="muted">${escapeHtml(t.description || '')}</div>
+                    <div class="muted">Шагов: ${t.totalSteps != null ? t.totalSteps : '—'}</div>
+                  </div>
+                  <button class="btn sm" data-template="${escapeHtml(String(t.id))}">Скопировать себе</button>
+                </div>`).join('')
+            : `<div class="empty">Шаблоны чек-листов отсутствуют.</div>`;
+
+          view.innerHTML = `
+            <button class="btn secondary sm mb" id="backBtn">← К сценариям</button>
+            <div id="scAlert"></div>
+            <div class="card">
+              <div class="flex-between mb">
+                <h2 style="margin:0">${escapeHtml(s.title || '')}</h2>
+              </div>
+              <div class="pill-row mb">
+                <span class="badge blue">${escapeHtml(s.lawTypeDisplay || s.lawType || '')}</span>
+                ${s.mspOnly ? '<span class="badge yellow">Только МСП</span>' : ''}
+              </div>
+              <p>${escapeHtml(s.description || '')}</p>
+            </div>
+            <h3 class="mb">Риски</h3>
+            ${risksHtml}
+            <h3 class="mb mt">Шаблоны чек-листов</h3>
+            ${templatesHtml}`;
+
+          document.getElementById('backBtn').onclick = loadScenarios;
+
+          const scAlert = document.getElementById('scAlert');
+          view.querySelectorAll('button[data-template]').forEach(btn => {
+            btn.onclick = async () => {
+              const tid = btn.getAttribute('data-template');
+              btn.disabled = true;
+              scAlert.innerHTML = '';
+              try {
+                await api('/procurement/checklists/copy/' + encodeURIComponent(tid), { method: 'POST' });
+                scAlert.innerHTML = `<div class="alert ok">Чек-лист добавлен в «Мои чек-листы».</div>`;
+              } catch (err) {
+                scAlert.innerHTML = `<div class="alert error">${escapeHtml(err.message || 'Не удалось скопировать чек-лист')}</div>`;
+                btn.disabled = false;
+              }
+            };
+          });
+        } catch (err) {
+          view.innerHTML = `
+            <button class="btn secondary sm mb" id="backBtn">← К сценариям</button>
+            <div class="alert error">${escapeHtml(err.message || 'Не удалось загрузить сценарий')}</div>`;
+          document.getElementById('backBtn').onclick = loadScenarios;
+        }
+      }
+
+      // ──────────────────────────── My checklists ───────────────────────────
+      async function loadChecklists() {
+        setActiveTab('checklists');
+        view.innerHTML = `<div class="loader">Загрузка…</div>`;
+        try {
+          const lists = await api('/procurement/checklists');
+          if (!lists || !lists.length) {
+            view.innerHTML = `
+              <div class="empty">
+                У вас пока нет чек-листов.<br>
+                Откройте сценарий и нажмите «Скопировать себе», чтобы добавить шаблон.
+              </div>`;
+            return;
+          }
+          view.innerHTML = lists.map(c => renderChecklistCard(c)).join('');
+          lists.forEach(c => bindChecklistCard(c.id));
+        } catch (err) {
+          view.innerHTML = `<div class="alert error">${escapeHtml(err.message || 'Не удалось загрузить чек-листы')}</div>`;
+        }
+      }
+
+      function renderChecklistCard(c) {
+        const pct = c.progressPercent != null ? c.progressPercent : 0;
+        const done = c.completedSteps != null ? c.completedSteps : 0;
+        const total = c.totalSteps != null ? c.totalSteps : (c.steps ? c.steps.length : 0);
+        const steps = (c.steps || []).map(step => `
+          <label class="flex" style="align-items:flex-start; padding:8px 0; border-bottom:1px solid var(--border); color:var(--text)">
+            <input type="checkbox" style="width:auto; margin-top:4px"
+                   data-step="${escapeHtml(String(step.id))}" ${step.isCompleted ? 'checked' : ''}>
+            <span>
+              <strong>${escapeHtml(step.title || '')}</strong>
+              ${step.description ? `<div>${escapeHtml(step.description)}</div>` : ''}
+              ${step.hint ? `<div class="muted" style="font-size:.82rem">${escapeHtml(step.hint)}</div>` : ''}
+            </span>
+          </label>`).join('');
+
+        return `
+          <div class="card" data-checklist="${escapeHtml(String(c.id))}">
+            <div class="flex-between mb">
+              <h3 style="margin:0">${escapeHtml(c.title || '')}</h3>
+              <span class="muted">${done}/${total}</span>
+            </div>
+            ${c.description ? `<p class="muted mb">${escapeHtml(c.description)}</p>` : ''}
+            <div class="progress mb"><div style="width:${pct}%"></div></div>
+            <div class="steps">${steps}</div>
+          </div>`;
+      }
+
+      function bindChecklistCard(checklistId) {
+        const card = view.querySelector(`[data-checklist="${CSS.escape(String(checklistId))}"]`);
+        if (!card) return;
+        card.querySelectorAll('input[data-step]').forEach(cb => {
+          cb.onchange = async () => {
+            const stepId = cb.getAttribute('data-step');
+            cb.disabled = true;
+            try {
+              await api('/procurement/checklists/step/' + encodeURIComponent(stepId) + '/toggle', { method: 'POST' });
+              // Refresh just this checklist to update progress.
+              const fresh = await api('/procurement/checklists/' + encodeURIComponent(checklistId));
+              const newCard = document.createElement('div');
+              newCard.innerHTML = renderChecklistCard(fresh);
+              card.replaceWith(newCard.firstElementChild);
+              bindChecklistCard(checklistId);
+            } catch (err) {
+              cb.checked = !cb.checked;
+              cb.disabled = false;
+              alert(err.message || 'Не удалось обновить шаг');
+            }
+          };
+        });
+      }
+
+      // ─────────────────────────────── Init ──────────────────────────────
+      tabScenarios.onclick = loadScenarios;
+      tabChecklists.onclick = loadChecklists;
+      loadScenarios();
+    }
+  </script>
+</body>
+</html>

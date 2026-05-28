@@ -21,17 +21,17 @@ public:
 
     // Get tax obligations for a given regime
     std::vector<TaxObligation> get_obligations(int64_t tax_regime_id) {
-        return repos_.find_obligations_by_regime_id(tax_regime_id);
+        return repos_.find_obligations_by_regime(tax_regime_id);
     }
 
     // Get template deadlines for a regime (not associated with a specific company)
     std::vector<Deadline> get_template_deadlines(int64_t tax_regime_id) {
-        return repos_.find_template_deadlines_by_regime_id(tax_regime_id);
+        return repos_.find_template_deadlines(tax_regime_id);
     }
 
     // Get deadlines associated with a specific company
     std::vector<Deadline> get_company_deadlines(int64_t company_id) {
-        return repos_.find_deadlines_by_company_id(company_id);
+        return repos_.find_company_deadlines(company_id);
     }
 
     // Recommend tax regimes based on company parameters
