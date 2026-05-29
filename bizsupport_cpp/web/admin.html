@@ -68,6 +68,7 @@
           { key: 'users', label: 'Пользователи' },
           { key: 'regimes', label: 'Налоговые режимы' },
           { key: 'scenarios', label: 'Сценарии' },
+          { key: 'risks', label: 'Риски' },
         ];
         let activeTab = 'users';
 
@@ -91,6 +92,121 @@
           if (activeTab === 'users') loadUsers();
           else if (activeTab === 'regimes') loadRegimes();
           else if (activeTab === 'scenarios') loadScenarios();
+          else if (activeTab === 'risks') loadRisks();
+        }
+
+        const RISK_TYPES = [
+          { v: 'FINANCIAL', label: 'Финансовый', cls: 'red' },
+          { v: 'LEGAL', label: 'Юридический', cls: 'yellow' },
+          { v: 'PROCEDURAL', label: 'Процедурный', cls: 'blue' },
+        ];
+        function riskTypeBadge(t) {
+          const m = RISK_TYPES.find(x => x.v === t);
+          return m ? `<span class="badge ${m.cls}">${m.label}</span>` : `<span class="badge gray">${escapeHtml(t || '—')}</span>`;
+        }
+
+        async function loadRisks() {
+          try {
+            const data = await api('/admin/risks');
+            const risks = data.risks || [];
+            const scenarios = data.scenarios || [];
+
+            const rows = risks.map(r => `
+              <tr>
+                <td>${escapeHtml(r.title)}</td>
+                <td>${riskTypeBadge(r.riskType)}</td>
+                <td>${escapeHtml(r.scenarioTitle || '—')}</td>
+                <td class="flex">
+                  <button class="btn secondary sm" data-edit-risk="${r.id}">Редактировать</button>
+                  <button class="btn danger sm" data-delete-risk="${r.id}">Удалить</button>
+                </td>
+              </tr>`).join('');
+
+            const body = rows || `<tr><td colspan="4"><div class="empty">Риски не добавлены</div></td></tr>`;
+
+            tabContent.innerHTML = `
+              <div class="flex-between mb">
+                <h2 style="margin:0">Карточки рисков</h2>
+                <button class="btn" id="addRisk">Добавить риск</button>
+              </div>
+              <div id="riskForm"></div>
+              <div class="card">
+                <table>
+                  <thead><tr><th>Название</th><th>Тип</th><th>Сценарий</th><th>Действия</th></tr></thead>
+                  <tbody>${body}</tbody>
+                </table>
+              </div>`;
+
+            document.getElementById('addRisk').onclick = () => showRiskForm(null, scenarios, risks);
+            tabContent.querySelectorAll('[data-edit-risk]').forEach(btn => {
+              btn.onclick = () => {
+                const id = Number(btn.getAttribute('data-edit-risk'));
+                showRiskForm(risks.find(x => x.id === id), scenarios, risks);
+              };
+            });
+            tabContent.querySelectorAll('[data-delete-risk]').forEach(btn => {
+              btn.onclick = async () => {
+                if (!confirm('Удалить эту карточку риска?')) return;
+                try {
+                  await api(`/admin/risks/${btn.getAttribute('data-delete-risk')}/delete`, { method: 'POST' });
+                  loadRisks();
+                } catch (err) { showError(err); }
+              };
+            });
+          } catch (err) { showError(err); tabContent.innerHTML = ''; }
+        }
+
+        function showRiskForm(risk, scenarios, allRisks) {
+          const box = document.getElementById('riskForm');
+          const scenarioOpts = scenarios.map(s =>
+            `<option value="${s.id}" ${risk && risk.scenarioId === s.id ? 'selected' : ''}>${escapeHtml(s.title)}</option>`
+          ).join('');
+          const typeOpts = RISK_TYPES.map(t =>
+            `<option value="${t.v}" ${risk && risk.riskType === t.v ? 'selected' : ''}>${t.label}</option>`
+          ).join('');
+
+          box.innerHTML = `
+            <div class="card">
+              <h3>${risk ? 'Редактировать риск' : 'Новый риск'}</h3>
+              <form id="riskFormEl">
+                <div class="form-group"><label>Сценарий</label>
+                  <select name="scenarioId" required>${scenarioOpts}</select></div>
+                <div class="form-group"><label>Название</label>
+                  <input name="title" value="${risk ? escapeHtml(risk.title) : ''}" required></div>
+                <div class="form-group"><label>Тип риска</label>
+                  <select name="riskType">${typeOpts}</select></div>
+                <div class="form-group"><label>Описание</label>
+                  <textarea name="description">${risk ? escapeHtml(risk.description || '') : ''}</textarea></div>
+                <div class="form-group"><label>Последствие</label>
+                  <textarea name="consequence">${risk ? escapeHtml(risk.consequence || '') : ''}</textarea></div>
+                <div class="form-group"><label>Рекомендация</label>
+                  <textarea name="recommendation">${risk ? escapeHtml(risk.recommendation || '') : ''}</textarea></div>
+                <div class="flex">
+                  <button class="btn" type="submit">Сохранить</button>
+                  <button class="btn secondary" type="button" id="cancelRisk">Отмена</button>
+                </div>
+              </form>
+            </div>`;
+
+          document.getElementById('cancelRisk').onclick = () => { box.innerHTML = ''; };
+          document.getElementById('riskFormEl').onsubmit = async (e) => {
+            e.preventDefault();
+            const f = new FormData(e.target);
+            const body = {
+              scenarioId: Number(f.get('scenarioId')),
+              title: f.get('title'),
+              riskType: f.get('riskType'),
+              description: f.get('description'),
+              consequence: f.get('consequence'),
+              recommendation: f.get('recommendation')
+            };
+            if (risk) body.id = risk.id;
+            try {
+              await api('/admin/risks/save', { method: 'POST', body });
+              box.innerHTML = '';
+              loadRisks();
+            } catch (err) { showError(err); }
+          };
         }
 
         // ── Users ──

@@ -19,6 +19,7 @@ WORKDIR /app
 
 COPY CMakeLists.txt .
 COPY src/ src/
+COPY web/ web/
 COPY config.ini .
 
 RUN mkdir build && cd build \
@@ -42,7 +43,10 @@ WORKDIR /app
 
 COPY --from=builder /app/build/bizsupport .
 COPY --from=builder /app/config.ini .
+COPY --from=builder /app/web ./web
+
+ENV WEB_ROOT=/app/web
 
 EXPOSE 8080
 
-CMD ["./bizsupport"]
+CMD ["./bizsupport", "/app/config.ini"]

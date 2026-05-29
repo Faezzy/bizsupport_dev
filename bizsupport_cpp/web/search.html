@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BizSupport — Поиск</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <script src="/js/common.js"></script>
+  <script>
+    if (!requireAuth()) {}
+    const main = renderShell('/search.html');
+
+    main.innerHTML = `
+      <div class="page-header">
+        <div>
+          <h1>Поиск</h1>
+          <p class="muted">Налоговые режимы и сценарии госзакупок</p>
+        </div>
+      </div>
+      <div class="card">
+        <form id="searchForm" class="flex">
+          <input type="text" name="q" id="q" placeholder="Например: УСН, тендер, патент..." autofocus>
+          <button class="btn" type="submit">Найти</button>
+        </form>
+      </div>
+      <div id="results"></div>
+    `;
+
+    const results = document.getElementById('results');
+    const form = document.getElementById('searchForm');
+    const initialQ = new URLSearchParams(location.search).get('q');
+    if (initialQ) { document.getElementById('q').value = initialQ; search(initialQ); }
+
+    form.onsubmit = (e) => {
+      e.preventDefault();
+      const q = document.getElementById('q').value.trim();
+      if (q) search(q);
+    };
+
+    async function search(q) {
+      results.innerHTML = '<div class="loader">Ищем...</div>';
+      try {
+        const data = await api('/search?q=' + encodeURIComponent(q));
+        renderResults(data, q);
+      } catch (err) {
+        results.innerHTML = `<div class="alert error">${escapeHtml(err.message)}</div>`;
+      }
+    }
+
+    function renderResults(data, q) {
+      const regimes = data.regimes || [];
+      const scenarios = data.scenarios || [];
+      const total = regimes.length + scenarios.length;
+
+      if (total === 0) {
+        results.innerHTML = `<div class="empty">По запросу «${escapeHtml(q)}» ничего не найдено.</div>`;
+        return;
+      }
+
+      let html = `<p class="muted mb">Найдено: <b>${total}</b> результатов</p>`;
+
+      if (regimes.length) {
+        html += `<div class="card"><h2>Налоговые режимы (${regimes.length})</h2><div class="grid grid-2">`;
+        for (const r of regimes) {
+          html += `
+            <div class="card">
+              <h3>${escapeHtml(r.name)} <span class="badge blue">${escapeHtml(r.code)}</span></h3>
+              <p class="muted">${escapeHtml(r.description || '')}</p>
+              <p><small class="muted">${escapeHtml(r.nkRef || '')}</small></p>
+              <a class="btn sm secondary" href="/tax.html">Открыть в каталоге</a>
+            </div>`;
+        }
+        html += `</div></div>`;
+      }
+
+      if (scenarios.length) {
+        html += `<div class="card"><h2>Сценарии госзакупок (${scenarios.length})</h2><div class="grid grid-2">`;
+        for (const s of scenarios) {
+          html += `
+            <div class="card">
+              <h3>${escapeHtml(s.title)}</h3>
+              <p class="muted">${escapeHtml(s.description || '')}</p>
+              <div class="pill-row">
+                <span class="badge blue">${escapeHtml(s.lawTypeDisplay || s.lawType)}</span>
+                ${s.mspOnly ? '<span class="badge yellow">Только МСП</span>' : ''}
+              </div>
+              <a class="btn sm secondary mt" href="/procurement.html">Открыть в каталоге</a>
+            </div>`;
+        }
+        html += `</div></div>`;
+      }
+
+      results.innerHTML = html;
+    }
+  </script>
+</body>
+</html>

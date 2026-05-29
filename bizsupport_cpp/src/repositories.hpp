@@ -864,6 +864,33 @@ public:
         return risks;
     }
 
+    std::vector<RiskCard> find_all_risks() {
+        ConnectionPool::ConnectionGuard guard(pool_);
+        pqxx::work txn(guard.get());
+        auto result = txn.exec(
+            "SELECT id, scenario_id, title, risk_type, description, consequence, recommendation "
+            "FROM risk_cards ORDER BY scenario_id, id");
+        txn.commit();
+        std::vector<RiskCard> risks;
+        risks.reserve(result.size());
+        for (const auto& row : result) {
+            risks.push_back(parse_risk_card(row));
+        }
+        return risks;
+    }
+
+    std::optional<RiskCard> find_risk_by_id(int64_t id) {
+        ConnectionPool::ConnectionGuard guard(pool_);
+        pqxx::work txn(guard.get());
+        auto result = txn.exec_params(
+            "SELECT id, scenario_id, title, risk_type, description, consequence, recommendation "
+            "FROM risk_cards WHERE id = $1",
+            id);
+        txn.commit();
+        if (result.empty()) return std::nullopt;
+        return parse_risk_card(result[0]);
+    }
+
     std::vector<RiskCard> find_risks_by_type(const std::string& risk_type) {
         ConnectionPool::ConnectionGuard guard(pool_);
         pqxx::work txn(guard.get());

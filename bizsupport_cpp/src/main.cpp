@@ -947,6 +947,34 @@ int main(int argc, char* argv[]) {
         }
     });
 
+    // Enrich a UserFavorite with the linked entity's display name
+    auto enrich_favorite = [&](const UserFavorite& f) -> json {
+        json j = favorite_to_json(f);
+        std::string name;
+        std::string entity_url;
+        if (f.entity_type == "TAX_REGIME") {
+            if (auto e = repos.find_tax_regime_by_id(f.entity_id)) {
+                name = e->name;
+                entity_url = "/tax.html#regime-" + e->code;
+            }
+        } else if (f.entity_type == "PROCUREMENT") {
+            if (auto e = repos.find_scenario_by_id(f.entity_id)) {
+                name = e->title;
+                entity_url = "/procurement.html#scenario-" + std::to_string(e->id);
+            }
+        } else if (f.entity_type == "RISK") {
+            if (auto e = repos.find_risk_by_id(f.entity_id)) name = e->title;
+        } else if (f.entity_type == "TENDER") {
+            if (auto e = repos.find_tender_by_id(f.entity_id)) {
+                name = e->title;
+                entity_url = "/tenders.html#tender-" + std::to_string(e->id);
+            }
+        }
+        j["entityName"] = name.empty() ? json(nullptr) : json(name);
+        j["entityUrl"] = entity_url.empty() ? json(nullptr) : json(entity_url);
+        return j;
+    };
+
     svr.Get(R"(/api/favorites/type/(.+))", [&](const httplib::Request& req, httplib::Response& res) {
         try {
             auto user = require_auth(req, res, auth_svc);
@@ -956,7 +984,7 @@ int main(int argc, char* argv[]) {
             auto favorites = repos.find_user_favorites_by_type(user->id, type);
             json arr = json::array();
             for (const auto& f : favorites) {
-                arr.push_back(favorite_to_json(f));
+                arr.push_back(enrich_favorite(f));
             }
             json_response(res, 200, arr);
         } catch (const std::exception& e) {
@@ -999,7 +1027,7 @@ int main(int argc, char* argv[]) {
             auto favorites = repos.find_user_favorites(user->id);
             json arr = json::array();
             for (const auto& f : favorites) {
-                arr.push_back(favorite_to_json(f));
+                arr.push_back(enrich_favorite(f));
             }
             json_response(res, 200, arr);
         } catch (const std::exception& e) {
@@ -1361,6 +1389,41 @@ int main(int argc, char* argv[]) {
 
             auto saved = repos.save_scenario(scenario);
             json_response(res, 200, scenario_to_json(saved));
+        } catch (const std::exception& e) {
+            error_response(res, 500, "Internal Server Error", e.what());
+        }
+    });
+
+    svr.Get("/api/admin/risks", [&](const httplib::Request& req, httplib::Response& res) {
+        try {
+            auto user = require_admin(req, res, auth_svc);
+            if (!user) return;
+
+            auto risks = repos.find_all_risks();
+            auto scenarios = repos.find_all_scenarios();
+
+            // Build scenario_id -> title map for nice display
+            json scenarios_map = json::object();
+            for (const auto& s : scenarios) {
+                scenarios_map[std::to_string(s.id)] = s.title;
+            }
+
+            json risks_json = json::array();
+            for (const auto& r : risks) {
+                json rj = risk_card_to_json(r);
+                rj["scenarioId"] = r.scenario_id;
+                auto it = scenarios_map.find(std::to_string(r.scenario_id));
+                rj["scenarioTitle"] = (it != scenarios_map.end()) ? *it : json(nullptr);
+                risks_json.push_back(rj);
+            }
+
+            json response;
+            response["risks"] = risks_json;
+            json scenarios_arr = json::array();
+            for (const auto& s : scenarios) scenarios_arr.push_back(scenario_to_json(s));
+            response["scenarios"] = scenarios_arr;
+
+            json_response(res, 200, response);
         } catch (const std::exception& e) {
             error_response(res, 500, "Internal Server Error", e.what());
         }

@@ -75,15 +75,24 @@
           content.innerHTML = `<div class="empty">Список избранного пуст</div>`;
           return;
         }
-        content.innerHTML = `<div class="grid grid-3">` + items.map(fav => `
+        content.innerHTML = `<div class="grid grid-3">` + items.map(fav => {
+          const name = fav.entityName ? escapeHtml(fav.entityName) : `Сущность не найдена`;
+          const openLink = fav.entityUrl
+            ? `<a class="btn sm secondary mt" href="${escapeHtml(fav.entityUrl)}">Открыть</a>`
+            : '';
+          return `
           <div class="card">
             <div class="mb">${typeBadge(fav.entityType)}</div>
-            <div><strong>ID #${escapeHtml(fav.entityId)}</strong></div>
-            <div class="muted" style="font-size:.82rem;margin-top:6px">${fmtDate(fav.createdAt)}</div>
-            <button class="btn danger sm mt" data-type="${escapeHtml(fav.entityType)}" data-id="${escapeHtml(fav.entityId)}">
-              Удалить из избранного
-            </button>
-          </div>`).join('') + `</div>`;
+            <div><strong>${name}</strong></div>
+            <div class="muted" style="font-size:.82rem;margin-top:6px">ID #${escapeHtml(fav.entityId)} · ${fmtDate(fav.createdAt)}</div>
+            <div class="flex mt">
+              ${openLink}
+              <button class="btn danger sm" data-type="${escapeHtml(fav.entityType)}" data-id="${escapeHtml(fav.entityId)}">
+                Удалить
+              </button>
+            </div>
+          </div>`;
+        }).join('') + `</div>`;
 
         content.querySelectorAll('[data-id]').forEach(btn => {
           btn.onclick = async () => {

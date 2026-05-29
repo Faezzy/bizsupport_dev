@@ -50,6 +50,7 @@ function requireAuth() {
 
 const NAV = [
   { href: '/dashboard.html', icon: '\u{1F4CA}', label: 'Дашборд' },
+  { href: '/search.html', icon: '\u{1F50D}', label: 'Поиск' },
   { href: '/tax.html', icon: '\u{1F4B0}', label: 'Налоги' },
   { href: '/calculator.html', icon: '\u{1F9EE}', label: 'Калькулятор' },
   { href: '/tenders.html', icon: '\u{1F4DC}', label: 'Тендеры' },

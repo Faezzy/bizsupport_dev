@@ -29,10 +29,12 @@ services:
       DB_PORT: 5432
       DB_NAME: bizsupport_db
       DB_USER: bizsupport_user
-      DB_PASS: bizsupport_pass
+      DB_PASSWORD: bizsupport_pass
+      APP_JWT_SECRET: ${APP_JWT_SECRET:-bizsupport-docker-secret-key-2025-very-long-string}
     depends_on:
       db:
         condition: service_healthy
+    restart: unless-stopped
 
 volumes:
   pgdata:
