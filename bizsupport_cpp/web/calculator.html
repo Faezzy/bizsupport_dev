@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BizSupport — Калькулятор</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <script src="/js/common.js"></script>
+  <script>
+    if (requireAuth()) {
+      const main = renderShell('/calculator.html');
+
+      main.innerHTML = `
+        <div class="page-header">
+          <div>
+            <h1>Калькулятор налоговой нагрузки</h1>
+            <p>Сравните налоговые режимы по вашим показателям</p>
+          </div>
+        </div>
+
+        <div id="alert"></div>
+
+        <div class="card">
+          <form id="calcForm">
+            <div class="grid grid-2">
+              <div class="form-group">
+                <label>Годовой доход, ₽</label>
+                <input type="number" name="revenue" min="0" value="5000000" required>
+              </div>
+              <div class="form-group">
+                <label>Расходы, ₽</label>
+                <input type="number" name="expenses" min="0" value="2000000" required>
+              </div>
+              <div class="form-group">
+                <label>Сотрудники</label>
+                <input type="number" name="employees" min="0" value="3" required>
+              </div>
+              <div class="form-group">
+                <label>Средняя зарплата, ₽/мес</label>
+                <input type="number" name="avgSalary" min="0" value="60000" required>
+              </div>
+              <div class="form-group">
+                <label>Форма</label>
+                <select name="isIp">
+                  <option value="true">ИП</option>
+                  <option value="false">ООО</option>
+                </select>
+              </div>
+            </div>
+            <button type="submit" class="btn">Рассчитать</button>
+          </form>
+        </div>
+
+        <div id="results"></div>`;
+
+      const form = document.getElementById('calcForm');
+      const alertBox = document.getElementById('alert');
+      const results = document.getElementById('results');
+
+      function renderResults(list) {
+        if (!Array.isArray(list) || !list.length) {
+          results.innerHTML = `<div class="empty">Нет результатов для расчёта</div>`;
+          return;
+        }
+        const cards = list.map(r => {
+          const applicable = r.applicable !== false;
+          const bestBadge = r.best
+            ? '<span class="badge green">Оптимально</span>' : '';
+          const borderStyle = r.best
+            ? 'border-color: var(--success);' : '';
+          const opacityStyle = applicable ? '' : 'opacity:.55;';
+
+          let body;
+          if (!applicable) {
+            body = `<div class="muted">${escapeHtml(r.notApplicableReason || 'Режим неприменим')}</div>`;
+          } else {
+            const breakdownList = Array.isArray(r.breakdown) && r.breakdown.length
+              ? `<ul style="margin:10px 0 0 18px">` +
+                  r.breakdown.map(b => `<li class="muted">${escapeHtml(b)}</li>`).join('') +
+                `</ul>`
+              : '';
+            const ratePct = r.effectiveRate != null
+              ? (r.effectiveRate <= 1 ? (r.effectiveRate * 100) : r.effectiveRate) : null;
+            const rateText = ratePct != null
+              ? ratePct.toLocaleString('ru-RU', { maximumFractionDigits: 2 }) + '%' : '—';
+            body = `
+              <div class="value" style="font-size:1.8rem; font-weight:700">${money(r.totalLoad)}</div>
+              <div class="label muted">Совокупная нагрузка · эфф. ставка ${rateText}</div>
+              <div class="flex-between mt">
+                <span class="muted">Налог</span>
+                <span>${money(r.taxAmount)}</span>
+              </div>
+              <div class="flex-between">
+                <span class="muted">Взносы</span>
+                <span>${money(r.contributions)}</span>
+              </div>
+              ${breakdownList}`;
+          }
+
+          return `
+            <div class="stat" style="${borderStyle}${opacityStyle}">
+              <div class="flex-between" style="margin-bottom:10px">
+                <h3 style="margin:0">${escapeHtml(r.regimeName || r.regimeCode || '')}</h3>
+                ${bestBadge}
+              </div>
+              ${body}
+            </div>`;
+        }).join('');
+
+        results.innerHTML = `<div class="grid grid-2">${cards}</div>`;
+      }
+
+      form.onsubmit = async (e) => {
+        e.preventDefault();
+        alertBox.innerHTML = '';
+        const f = new FormData(form);
+        const params = new URLSearchParams({
+          revenue: f.get('revenue') || '0',
+          expenses: f.get('expenses') || '0',
+          employees: f.get('employees') || '0',
+          avgSalary: f.get('avgSalary') || '0',
+          isIp: f.get('isIp')
+        });
+        results.innerHTML = `<div class="loader">Загрузка…</div>`;
+        try {
+          const data = await api('/tax/calculator?' + params.toString());
+          renderResults(data);
+        } catch (err) {
+          results.innerHTML = '';
+          alertBox.innerHTML = `<div class="alert error">${escapeHtml(err.message || 'Не удалось выполнить расчёт')}</div>`;
+        }
+      };
+    }
+  </script>
+</body>
+</html>

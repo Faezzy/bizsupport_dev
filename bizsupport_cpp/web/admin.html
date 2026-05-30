@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BizSupport — Админ-панель</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <script src="/js/common.js"></script>
+  <script>
+    if (requireAuth()) {
+      const main = renderShell('/admin.html');
+
+      if (Auth.user()?.role !== 'ADMIN') {
+        main.innerHTML = '<div class="alert error">Доступ только для администраторов</div>';
+      } else {
+        const currentEmail = Auth.user().email;
+
+        main.innerHTML = `
+          <div class="page-header">
+            <div>
+              <h1>Админ-панель</h1>
+              <p>Управление пользователями, режимами и сценариями</p>
+            </div>
+          </div>
+          <div id="alert"></div>
+          <div class="grid grid-4 mb" id="stats">
+            <div class="loader">Загрузка…</div>
+          </div>
+          <div class="pill-row mb" id="tabs"></div>
+          <div id="tabContent">
+            <div class="loader">Загрузка…</div>
+          </div>`;
+
+        const alertBox = document.getElementById('alert');
+        const statsBox = document.getElementById('stats');
+        const tabsBox = document.getElementById('tabs');
+        const tabContent = document.getElementById('tabContent');
+
+        function showError(err) {
+          alertBox.innerHTML = `<div class="alert error">${escapeHtml(err.message || 'Ошибка операции')}</div>`;
+        }
+        function clearError() { alertBox.innerHTML = ''; }
+
+        const ROLE_BADGE = {
+          ADMIN: '<span class="badge red">ADMIN</span>',
+          USER: '<span class="badge gray">USER</span>',
+        };
+
+        // ── Stats ──
+        async function loadStats() {
+          try {
+            const s = await api('/admin/stats');
+            statsBox.innerHTML = `
+              <div class="stat"><div class="value">${s.userCount ?? 0}</div><div class="label">Пользователей</div></div>
+              <div class="stat"><div class="value">${s.regimeCount ?? 0}</div><div class="label">Налоговых режимов</div></div>
+              <div class="stat"><div class="value">${s.scenarioCount ?? 0}</div><div class="label">Сценариев</div></div>
+              <div class="stat"><div class="value">${s.tenderCount ?? 0}</div><div class="label">Тендеров</div></div>`;
+          } catch (err) {
+            statsBox.innerHTML = '';
+            showError(err);
+          }
+        }
+
+        // ── Tabs ──
+        const TABS = [
+          { key: 'users', label: 'Пользователи' },
+          { key: 'regimes', label: 'Налоговые режимы' },
+          { key: 'scenarios', label: 'Сценарии' },
+          { key: 'risks', label: 'Риски' },
+        ];
+        let activeTab = 'users';
+
+        function renderTabs() {
+          tabsBox.innerHTML = TABS.map(t => {
+            const cls = t.key === activeTab ? 'btn sm' : 'btn secondary sm';
+            return `<button class="${cls}" data-tab="${t.key}">${escapeHtml(t.label)}</button>`;
+          }).join('');
+          tabsBox.querySelectorAll('[data-tab]').forEach(btn => {
+            btn.onclick = () => {
+              activeTab = btn.getAttribute('data-tab');
+              renderTabs();
+              loadTab();
+            };
+          });
+        }
+
+        function loadTab() {
+          clearError();
+          tabContent.innerHTML = `<div class="loader">Загрузка…</div>`;
+          if (activeTab === 'users') loadUsers();
+          else if (activeTab === 'regimes') loadRegimes();
+          else if (activeTab === 'scenarios') loadScenarios();
+          else if (activeTab === 'risks') loadRisks();
+        }
+
+        const RISK_TYPES = [
+          { v: 'FINANCIAL', label: 'Финансовый', cls: 'red' },
+          { v: 'LEGAL', label: 'Юридический', cls: 'yellow' },
+          { v: 'PROCEDURAL', label: 'Процедурный', cls: 'blue' },
+        ];
+        function riskTypeBadge(t) {
+          const m = RISK_TYPES.find(x => x.v === t);
+          return m ? `<span class="badge ${m.cls}">${m.label}</span>` : `<span class="badge gray">${escapeHtml(t || '—')}</span>`;
+        }
+
+        async function loadRisks() {
+          try {
+            const data = await api('/admin/risks');
+            const risks = data.risks || [];
+            const scenarios = data.scenarios || [];
+
+            const rows = risks.map(r => `
+              <tr>
+                <td>${escapeHtml(r.title)}</td>
+                <td>${riskTypeBadge(r.riskType)}</td>
+                <td>${escapeHtml(r.scenarioTitle || '—')}</td>
+                <td class="flex">
+                  <button class="btn secondary sm" data-edit-risk="${r.id}">Редактировать</button>
+                  <button class="btn danger sm" data-delete-risk="${r.id}">Удалить</button>
+                </td>
+              </tr>`).join('');
+
+            const body = rows || `<tr><td colspan="4"><div class="empty">Риски не добавлены</div></td></tr>`;
+
+            tabContent.innerHTML = `
+              <div class="flex-between mb">
+                <h2 style="margin:0">Карточки рисков</h2>
+                <button class="btn" id="addRisk">Добавить риск</button>
+              </div>
+              <div id="riskForm"></div>
+              <div class="card">
+                <table>
+                  <thead><tr><th>Название</th><th>Тип</th><th>Сценарий</th><th>Действия</th></tr></thead>
+                  <tbody>${body}</tbody>
+                </table>
+              </div>`;
+
+            document.getElementById('addRisk').onclick = () => showRiskForm(null, scenarios, risks);
+            tabContent.querySelectorAll('[data-edit-risk]').forEach(btn => {
+              btn.onclick = () => {
+                const id = Number(btn.getAttribute('data-edit-risk'));
+                showRiskForm(risks.find(x => x.id === id), scenarios, risks);
+              };
+            });
+            tabContent.querySelectorAll('[data-delete-risk]').forEach(btn => {
+              btn.onclick = async () => {
+                if (!confirm('Удалить эту карточку риска?')) return;
+                try {
+                  await api(`/admin/risks/${btn.getAttribute('data-delete-risk')}/delete`, { method: 'POST' });
+                  loadRisks();
+                } catch (err) { showError(err); }
+              };
+            });
+          } catch (err) { showError(err); tabContent.innerHTML = ''; }
+        }
+
+        function showRiskForm(risk, scenarios, allRisks) {
+          const box = document.getElementById('riskForm');
+          const scenarioOpts = scenarios.map(s =>
+            `<option value="${s.id}" ${risk && risk.scenarioId === s.id ? 'selected' : ''}>${escapeHtml(s.title)}</option>`
+          ).join('');
+          const typeOpts = RISK_TYPES.map(t =>
+            `<option value="${t.v}" ${risk && risk.riskType === t.v ? 'selected' : ''}>${t.label}</option>`
+          ).join('');
+
+          box.innerHTML = `
+            <div class="card">
+              <h3>${risk ? 'Редактировать риск' : 'Новый риск'}</h3>
+              <form id="riskFormEl">
+                <div class="form-group"><label>Сценарий</label>
+                  <select name="scenarioId" required>${scenarioOpts}</select></div>
+                <div class="form-group"><label>Название</label>
+                  <input name="title" value="${risk ? escapeHtml(risk.title) : ''}" required></div>
+                <div class="form-group"><label>Тип риска</label>
+                  <select name="riskType">${typeOpts}</select></div>
+                <div class="form-group"><label>Описание</label>
+                  <textarea name="description">${risk ? escapeHtml(risk.description || '') : ''}</textarea></div>
+                <div class="form-group"><label>Последствие</label>
+                  <textarea name="consequence">${risk ? escapeHtml(risk.consequence || '') : ''}</textarea></div>
+                <div class="form-group"><label>Рекомендация</label>
+                  <textarea name="recommendation">${risk ? escapeHtml(risk.recommendation || '') : ''}</textarea></div>
+                <div class="flex">
+                  <button class="btn" type="submit">Сохранить</button>
+                  <button class="btn secondary" type="button" id="cancelRisk">Отмена</button>
+                </div>
+              </form>
+            </div>`;
+
+          document.getElementById('cancelRisk').onclick = () => { box.innerHTML = ''; };
+          document.getElementById('riskFormEl').onsubmit = async (e) => {
+            e.preventDefault();
+            const f = new FormData(e.target);
+            const body = {
+              scenarioId: Number(f.get('scenarioId')),
+              title: f.get('title'),
+              riskType: f.get('riskType'),
+              description: f.get('description'),
+              consequence: f.get('consequence'),
+              recommendation: f.get('recommendation')
+            };
+            if (risk) body.id = risk.id;
+            try {
+              await api('/admin/risks/save', { method: 'POST', body });
+              box.innerHTML = '';
+              loadRisks();
+            } catch (err) { showError(err); }
+          };
+        }
+
+        // ── Users ──
+        async function loadUsers() {
+          try {
+            const users = await api('/admin/users');
+            if (!users || !users.length) {
+              tabContent.innerHTML = `<div class="empty">Пользователей нет</div>`;
+              return;
+            }
+            const rows = users.map(u => {
+              const isSelf = u.email === currentEmail;
+              const deleteBtn = isSelf
+                ? `<span class="muted" style="font-size:.82rem">это вы</span>`
+                : `<button class="btn danger sm" data-del-user="${u.id}">Удалить</button>`;
+              return `
+                <tr>
+                  <td>${escapeHtml(u.email)}</td>
+                  <td>${escapeHtml(u.fullName || '—')}</td>
+                  <td>${ROLE_BADGE[u.role] || escapeHtml(u.role)}</td>
+                  <td>${fmtDate(u.createdAt)}</td>
+                  <td>
+                    <div class="flex">
+                      <button class="btn secondary sm" data-role-user="${u.id}">Сменить роль</button>
+                      ${deleteBtn}
+                    </div>
+                  </td>
+                </tr>`;
+            }).join('');
+
+            tabContent.innerHTML = `
+              <div class="card">
+                <table>
+                  <thead>
+                    <tr><th>Email</th><th>Имя</th><th>Роль</th><th>Дата</th><th>Действия</th></tr>
+                  </thead>
+                  <tbody>${rows}</tbody>
+                </table>
+              </div>`;
+
+            tabContent.querySelectorAll('[data-role-user]').forEach(btn => {
+              btn.onclick = async () => {
+                const id = btn.getAttribute('data-role-user');
+                btn.disabled = true;
+                try {
+                  await api('/admin/users/' + id + '/toggle-role', { method: 'POST' });
+                  loadUsers();
+                } catch (err) { btn.disabled = false; showError(err); }
+              };
+            });
+
+            tabContent.querySelectorAll('[data-del-user]').forEach(btn => {
+              btn.onclick = async () => {
+                if (!confirm('Удалить этого пользователя?')) return;
+                const id = btn.getAttribute('data-del-user');
+                btn.disabled = true;
+                try {
+                  await api('/admin/users/' + id + '/delete', { method: 'POST' });
+                  loadStats();
+                  loadUsers();
+                } catch (err) { btn.disabled = false; showError(err); }
+              };
+            });
+          } catch (err) {
+            tabContent.innerHTML = '';
+            showError(err);
+          }
+        }
+
+        // ── Regimes ──
+        async function loadRegimes() {
+          try {
+            const regimes = await api('/admin/regimes');
+            const rows = (regimes || []).map(r => `
+              <tr>
+                <td>${escapeHtml(r.code)}</td>
+                <td>${escapeHtml(r.name)}</td>
+                <td>${escapeHtml(r.nkRef || '—')}</td>
+                <td><button class="btn secondary sm" data-edit-regime="${r.id}">Редактировать</button></td>
+              </tr>`).join('');
+
+            const body = rows || `<tr><td colspan="4"><div class="empty">Режимов нет</div></td></tr>`;
+
+            tabContent.innerHTML = `
+              <div class="flex-between mb">
+                <h2 style="margin:0">Налоговые режимы</h2>
+                <button class="btn" id="addRegime">Добавить режим</button>
+              </div>
+              <div id="regimeForm"></div>
+              <div class="card">
+                <table>
+                  <thead><tr><th>Код</th><th>Название</th><th>Ссылка НК</th><th>Действия</th></tr></thead>
+                  <tbody>${body}</tbody>
+                </table>
+              </div>`;
+
+            const list = regimes || [];
+            document.getElementById('addRegime').onclick = () => renderRegimeForm(null);
+            tabContent.querySelectorAll('[data-edit-regime]').forEach(btn => {
+              btn.onclick = () => {
+                const id = Number(btn.getAttribute('data-edit-regime'));
+                renderRegimeForm(list.find(x => x.id === id) || null);
+              };
+            });
+          } catch (err) {
+            tabContent.innerHTML = '';
+            showError(err);
+          }
+        }
+
+        function renderRegimeForm(regime) {
+          const r = regime || {};
+          const formBox = document.getElementById('regimeForm');
+          formBox.innerHTML = `
+            <div class="card">
+              <h3>${regime ? 'Редактирование режима' : 'Новый режим'}</h3>
+              <form id="regimeF">
+                <div class="grid grid-2">
+                  <div class="form-group">
+                    <label>Код</label>
+                    <input type="text" name="code" value="${escapeHtml(r.code || '')}" required>
+                  </div>
+                  <div class="form-group">
+                    <label>Ссылка НК</label>
+                    <input type="text" name="nkRef" value="${escapeHtml(r.nkRef || '')}">
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label>Название</label>
+                  <input type="text" name="name" value="${escapeHtml(r.name || '')}" required>
+                </div>
+                <div class="form-group">
+                  <label>Описание</label>
+                  <textarea name="description">${escapeHtml(r.description || '')}</textarea>
+                </div>
+                <div class="form-group">
+                  <label>Условия</label>
+                  <textarea name="conditions">${escapeHtml(r.conditions || '')}</textarea>
+                </div>
+                <div class="flex">
+                  <button type="submit" class="btn">Сохранить</button>
+                  <button type="button" class="btn secondary" id="cancelRegime">Отмена</button>
+                </div>
+              </form>
+            </div>`;
+
+          document.getElementById('cancelRegime').onclick = () => { formBox.innerHTML = ''; };
+
+          const form = document.getElementById('regimeF');
+          form.onsubmit = async (e) => {
+            e.preventDefault();
+            clearError();
+            const f = new FormData(form);
+            const payload = {
+              code: f.get('code'),
+              name: f.get('name'),
+              description: f.get('description'),
+              conditions: f.get('conditions'),
+              nkRef: f.get('nkRef'),
+            };
+            if (regime && r.id != null) payload.id = r.id;
+            const submitBtn = form.querySelector('button[type="submit"]');
+            submitBtn.disabled = true;
+            try {
+              await api('/admin/regimes/save', { method: 'POST', body: payload });
+              loadStats();
+              loadRegimes();
+            } catch (err) { submitBtn.disabled = false; showError(err); }
+          };
+        }
+
+        // ── Scenarios ──
+        async function loadScenarios() {
+          try {
+            const scenarios = await api('/admin/scenarios');
+            const rows = (scenarios || []).map(s => `
+              <tr>
+                <td>${escapeHtml(s.title)}</td>
+                <td>${escapeHtml(s.lawTypeDisplay || s.lawType || '—')}</td>
+                <td>${s.mspOnly ? '<span class="badge green">Только МСП</span>' : '<span class="badge gray">Все</span>'}</td>
+                <td><button class="btn secondary sm" data-edit-scenario="${s.id}">Редактировать</button></td>
+              </tr>`).join('');
+
+            const body = rows || `<tr><td colspan="4"><div class="empty">Сценариев нет</div></td></tr>`;
+
+            tabContent.innerHTML = `
+              <div class="flex-between mb">
+                <h2 style="margin:0">Сценарии</h2>
+                <button class="btn" id="addScenario">Добавить сценарий</button>
+              </div>
+              <div id="scenarioForm"></div>
+              <div class="card">
+                <table>
+                  <thead><tr><th>Название</th><th>Закон</th><th>Только МСП</th><th>Действия</th></tr></thead>
+                  <tbody>${body}</tbody>
+                </table>
+              </div>`;
+
+            const list = scenarios || [];
+            document.getElementById('addScenario').onclick = () => renderScenarioForm(null);
+            tabContent.querySelectorAll('[data-edit-scenario]').forEach(btn => {
+              btn.onclick = () => {
+                const id = Number(btn.getAttribute('data-edit-scenario'));
+                renderScenarioForm(list.find(x => x.id === id) || null);
+              };
+            });
+          } catch (err) {
+            tabContent.innerHTML = '';
+            showError(err);
+          }
+        }
+
+        function renderScenarioForm(scenario) {
+          const s = scenario || {};
+          const lawType = s.lawType || 'FZ_44';
+          const formBox = document.getElementById('scenarioForm');
+          formBox.innerHTML = `
+            <div class="card">
+              <h3>${scenario ? 'Редактирование сценария' : 'Новый сценарий'}</h3>
+              <form id="scenarioF">
+                <div class="grid grid-2">
+                  <div class="form-group">
+                    <label>Тип закона</label>
+                    <select name="lawType">
+                      <option value="FZ_44" ${lawType === 'FZ_44' ? 'selected' : ''}>44-ФЗ</option>
+                      <option value="FZ_223" ${lawType === 'FZ_223' ? 'selected' : ''}>223-ФЗ</option>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label>Только МСП</label>
+                    <div style="padding-top:10px">
+                      <input type="checkbox" name="mspOnly" style="width:auto" ${s.mspOnly ? 'checked' : ''}>
+                    </div>
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label>Название</label>
+                  <input type="text" name="title" value="${escapeHtml(s.title || '')}" required>
+                </div>
+                <div class="form-group">
+                  <label>Описание</label>
+                  <textarea name="description">${escapeHtml(s.description || '')}</textarea>
+                </div>
+                <div class="grid grid-2">
+                  <div class="form-group">
+                    <label>Сумма от, ₽</label>
+                    <input type="number" name="amountMin" min="0" value="${s.amountMin != null ? s.amountMin : ''}">
+                  </div>
+                  <div class="form-group">
+                    <label>Сумма до, ₽</label>
+                    <input type="number" name="amountMax" min="0" value="${s.amountMax != null ? s.amountMax : ''}">
+                  </div>
+                </div>
+                <div class="flex">
+                  <button type="submit" class="btn">Сохранить</button>
+                  <button type="button" class="btn secondary" id="cancelScenario">Отмена</button>
+                </div>
+              </form>
+            </div>`;
+
+          document.getElementById('cancelScenario').onclick = () => { formBox.innerHTML = ''; };
+
+          const form = document.getElementById('scenarioF');
+          form.onsubmit = async (e) => {
+            e.preventDefault();
+            clearError();
+            const f = new FormData(form);
+            const minRaw = f.get('amountMin');
+            const maxRaw = f.get('amountMax');
+            const payload = {
+              lawType: f.get('lawType'),
+              title: f.get('title'),
+              description: f.get('description'),
+              mspOnly: form.querySelector('[name="mspOnly"]').checked,
+              amountMin: minRaw === '' || minRaw == null ? null : Number(minRaw),
+              amountMax: maxRaw === '' || maxRaw == null ? null : Number(maxRaw),
+            };
+            if (scenario && s.id != null) payload.id = s.id;
+            const submitBtn = form.querySelector('button[type="submit"]');
+            submitBtn.disabled = true;
+            try {
+              await api('/admin/scenarios/save', { method: 'POST', body: payload });
+              loadStats();
+              loadScenarios();
+            } catch (err) { submitBtn.disabled = false; showError(err); }
+          };
+        }
+
+        // ── Init ──
+        loadStats();
+        renderTabs();
+        loadTab();
+      }
+    }
+  </script>
+</body>
+</html>

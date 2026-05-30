@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BizSupport — Профиль</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <script src="/js/common.js"></script>
+  <script>
+    if (requireAuth()) {
+      const main = renderShell('/profile.html');
+
+      main.innerHTML = `
+        <div class="page-header">
+          <div>
+            <h1>Профиль компании</h1>
+            <p>Данные о вашей компании для подбора режимов и рекомендаций</p>
+          </div>
+        </div>
+        <div id="content">
+          <div class="loader">Загрузка…</div>
+        </div>`;
+
+      const content = document.getElementById('content');
+
+      function mspStatusHtml(isMsp) {
+        return isMsp
+          ? '<span class="badge green">Субъект МСП</span>'
+          : '<span class="badge gray">Не является субъектом МСП</span>';
+      }
+
+      function renderForm(profile) {
+        const p = profile || {};
+        const companyType = p.companyType || 'IP';
+        const mspBlock = profile
+          ? `<div class="mb">Текущий статус: ${mspStatusHtml(p.isMsp)}</div>`
+          : '';
+
+        content.innerHTML = `
+          <div id="alert"></div>
+          <div class="card">
+            ${mspBlock}
+            <form id="profileForm">
+              <div class="form-group">
+                <label>Название компании</label>
+                <input type="text" name="companyName" value="${escapeHtml(p.companyName || '')}" required>
+              </div>
+              <div class="form-group">
+                <label>Форма</label>
+                <select name="companyType">
+                  <option value="IP" ${companyType === 'IP' ? 'selected' : ''}>ИП</option>
+                  <option value="OOO" ${companyType === 'OOO' ? 'selected' : ''}>ООО</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>ИНН</label>
+                <input type="text" name="inn" value="${escapeHtml(p.inn || '')}">
+              </div>
+              <div class="form-group">
+                <label>Отрасль</label>
+                <input type="text" name="industry" value="${escapeHtml(p.industry || '')}">
+              </div>
+              <div class="grid grid-2">
+                <div class="form-group">
+                  <label>Кол-во сотрудников</label>
+                  <input type="number" name="employeesCount" min="0" value="${p.employeesCount != null ? p.employeesCount : ''}">
+                </div>
+                <div class="form-group">
+                  <label>Годовой оборот, ₽</label>
+                  <input type="number" name="annualRevenue" min="0" value="${p.annualRevenue != null ? p.annualRevenue : ''}">
+                </div>
+              </div>
+              <button type="submit" class="btn">Сохранить профиль</button>
+            </form>
+          </div>`;
+
+        const form = document.getElementById('profileForm');
+        const alertBox = document.getElementById('alert');
+
+        form.onsubmit = async (e) => {
+          e.preventDefault();
+          alertBox.innerHTML = '';
+          const f = new FormData(form);
+          const body = {
+            companyName: f.get('companyName'),
+            companyType: f.get('companyType'),
+            inn: f.get('inn'),
+            industry: f.get('industry'),
+            employeesCount: Number(f.get('employeesCount')) || 0,
+            annualRevenue: Number(f.get('annualRevenue')) || 0
+          };
+          const submitBtn = form.querySelector('button[type="submit"]');
+          submitBtn.disabled = true;
+          try {
+            const saved = await api('/profile', { method: 'POST', body });
+            const mspBadge = ' ' + mspStatusHtml(saved && saved.isMsp);
+            alertBox.innerHTML = `<div class="alert ok">Профиль сохранён${mspBadge}</div>`;
+            renderForm(saved);
+          } catch (err) {
+            alertBox.innerHTML = `<div class="alert error">${escapeHtml(err.message || 'Не удалось сохранить профиль')}</div>`;
+          } finally {
+            submitBtn.disabled = false;
+          }
+        };
+      }
+
+      (async () => {
+        try {
+          const profile = await api('/profile');
+          renderForm(profile);
+        } catch (err) {
+          // 404 (no profile yet) or other error → show empty form, surface non-404 errors lightly.
+          renderForm(null);
+        }
+      })();
+    }
+  </script>
+</body>
+</html>

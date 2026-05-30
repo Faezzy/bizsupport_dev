@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BizSupport — Дашборд</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <script src="/js/common.js"></script>
+  <script>
+    if (requireAuth()) {
+      const main = renderShell('/dashboard.html');
+      const user = Auth.user() || {};
+      const greetName = user.fullName || user.email || 'пользователь';
+
+      main.innerHTML = `
+        <div class="page-header">
+          <div>
+            <h1>Дашборд</h1>
+            <p>Здравствуйте, ${escapeHtml(greetName)}!</p>
+          </div>
+        </div>
+        <div id="content">
+          <div class="loader">Загрузка…</div>
+        </div>`;
+
+      const content = document.getElementById('content');
+
+      (async () => {
+        try {
+          const data = await api('/dashboard');
+          const profile = data.profile || null;
+          const regimes = data.currentRegimes || [];
+          const checklists = data.checklists || [];
+
+          const companyName = profile ? profile.companyName : 'Профиль не заполнен';
+          const mspBadge = profile && profile.isMsp
+            ? '<span class="badge green">Субъект МСП</span>'
+            : '<span class="badge gray">Не МСП</span>';
+
+          // ── Profile-missing alert ──
+          let profileAlert = '';
+          if (!profile) {
+            profileAlert = `
+              <div class="alert error flex-between">
+                <span>Профиль компании не заполнен. Заполните его, чтобы получать рекомендации.</span>
+                <a href="/profile.html" class="btn sm">Заполнить профиль</a>
+              </div>`;
+          }
+
+          // ── Stat cards ──
+          const stats = `
+            <div class="grid grid-4 mb">
+              <div class="stat">
+                <div class="value" style="font-size:1.15rem">${escapeHtml(companyName)}</div>
+                <div class="label">Компания</div>
+              </div>
+              <div class="stat">
+                <div class="value" style="font-size:1.15rem">${mspBadge}</div>
+                <div class="label">Статус МСП</div>
+              </div>
+              <div class="stat">
+                <div class="value">${regimes.length}</div>
+                <div class="label">Налоговых режимов</div>
+              </div>
+              <div class="stat">
+                <div class="value">${checklists.length}</div>
+                <div class="label">Чек-листов</div>
+              </div>
+            </div>`;
+
+          // ── Tax regimes section ──
+          let regimesHtml;
+          if (regimes.length) {
+            regimesHtml = `<div class="pill-row">` +
+              regimes.map(r =>
+                `<span class="badge blue">${escapeHtml(r.regimeName)}</span>`).join('') +
+              `</div>`;
+          } else {
+            regimesHtml = `
+              <div class="empty">
+                Налоговые режимы не выбраны.<br>
+                <a href="/tax.html">Подобрать режим</a>
+              </div>`;
+          }
+          const regimesCard = `
+            <div class="card">
+              <h2>Текущие налоговые режимы</h2>
+              ${regimesHtml}
+            </div>`;
+
+          // ── Checklists section ──
+          let checklistsHtml;
+          if (checklists.length) {
+            checklistsHtml = checklists.map(c => {
+              const pct = c.progressPercent != null ? c.progressPercent : 0;
+              const done = c.completedSteps != null ? c.completedSteps : 0;
+              const total = c.totalSteps != null ? c.totalSteps : 0;
+              return `
+                <div class="mb">
+                  <div class="flex-between" style="margin-bottom:6px">
+                    <strong>${escapeHtml(c.title)}</strong>
+                    <span class="muted">${done}/${total}</span>
+                  </div>
+                  <div class="progress"><div style="width:${pct}%"></div></div>
+                </div>`;
+            }).join('');
+          } else {
+            checklistsHtml = `
+              <div class="empty">
+                Чек-листов пока нет.<br>
+                <a href="/procurement.html">Перейти к госзакупкам</a>
+              </div>`;
+          }
+          const checklistsCard = `
+            <div class="card">
+              <h2>Мои чек-листы</h2>
+              ${checklistsHtml}
+            </div>`;
+
+          content.innerHTML = profileAlert + stats + regimesCard + checklistsCard;
+        } catch (err) {
+          content.innerHTML = `<div class="alert error">${escapeHtml(err.message || 'Не удалось загрузить дашборд')}</div>`;
+        }
+      })();
+    }
+  </script>
+</body>
+</html>

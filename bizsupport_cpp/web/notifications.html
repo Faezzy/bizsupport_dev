@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BizSupport — Уведомления</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <script src="/js/common.js"></script>
+  <script>
+    if (requireAuth()) {
+      const main = renderShell('/notifications.html');
+
+      main.innerHTML = `
+        <div class="page-header">
+          <div>
+            <h1>Уведомления</h1>
+            <p id="subtitle">Непрочитанных: …</p>
+          </div>
+          <button id="readAllBtn" class="btn secondary">Прочитать все</button>
+        </div>
+        <div id="alert"></div>
+        <div id="content">
+          <div class="loader">Загрузка…</div>
+        </div>`;
+
+      const subtitle = document.getElementById('subtitle');
+      const content = document.getElementById('content');
+      const alertBox = document.getElementById('alert');
+      const readAllBtn = document.getElementById('readAllBtn');
+
+      function showError(err) {
+        alertBox.innerHTML = `<div class="alert error">${escapeHtml(err.message || 'Не удалось загрузить уведомления')}</div>`;
+      }
+
+      function renderList(items) {
+        if (!items.length) {
+          content.innerHTML = `<div class="empty">Нет уведомлений</div>`;
+          return;
+        }
+        content.innerHTML = items.map(n => {
+          const unread = !n.isRead;
+          const accent = unread ? 'border-left:3px solid var(--primary);' : '';
+          const titleWeight = unread ? 'font-weight:700;' : '';
+          const newBadge = unread ? ` <span class="badge blue">Новое</span>` : '';
+          const readBtn = unread
+            ? `<button class="btn secondary sm" data-read="${n.id}">Прочитано</button>`
+            : '';
+          return `
+            <div class="card" style="${accent}">
+              <div class="flex-between" style="align-items:flex-start">
+                <div style="flex:1">
+                  <div style="${titleWeight}">${escapeHtml(n.title)}${newBadge}</div>
+                  <div class="muted mt">${escapeHtml(n.message)}</div>
+                  <div class="muted" style="font-size:.82rem;margin-top:8px">${fmtDate(n.createdAt)}</div>
+                </div>
+                <div class="flex" style="margin-left:16px">
+                  ${readBtn}
+                  <button class="btn danger sm" data-delete="${n.id}">Удалить</button>
+                </div>
+              </div>
+            </div>`;
+        }).join('');
+
+        content.querySelectorAll('[data-read]').forEach(btn => {
+          btn.onclick = async () => {
+            const id = btn.getAttribute('data-read');
+            btn.disabled = true;
+            try {
+              await api('/notifications/' + id + '/read', { method: 'POST' });
+              load();
+            } catch (err) { btn.disabled = false; showError(err); }
+          };
+        });
+
+        content.querySelectorAll('[data-delete]').forEach(btn => {
+          btn.onclick = async () => {
+            const id = btn.getAttribute('data-delete');
+            btn.disabled = true;
+            try {
+              await api('/notifications/' + id, { method: 'DELETE' });
+              load();
+            } catch (err) { btn.disabled = false; showError(err); }
+          };
+        });
+      }
+
+      async function load() {
+        alertBox.innerHTML = '';
+        try {
+          const [items, countObj] = await Promise.all([
+            api('/notifications'),
+            api('/notifications/count')
+          ]);
+          const count = countObj && countObj.count != null ? countObj.count : 0;
+          subtitle.textContent = 'Непрочитанных: ' + count;
+          renderList(items || []);
+        } catch (err) {
+          subtitle.textContent = 'Непрочитанных: —';
+          content.innerHTML = '';
+          showError(err);
+        }
+      }
+
+      readAllBtn.onclick = async () => {
+        readAllBtn.disabled = true;
+        try {
+          await api('/notifications/read-all', { method: 'POST' });
+          await load();
+        } catch (err) { showError(err); }
+        finally { readAllBtn.disabled = false; }
+      };
+
+      load();
+    }
+  </script>
+</body>
+</html>
