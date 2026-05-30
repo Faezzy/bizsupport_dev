@@ -8,7 +8,8 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
         build-essential \
         cmake \
-        git \
+        ninja-build \
+        ccache \
         pkg-config \
         libpqxx-dev \
         libssl-dev \
@@ -19,12 +20,12 @@ WORKDIR /app
 
 COPY CMakeLists.txt .
 COPY src/ src/
+COPY third_party/ third_party/
 COPY web/ web/
 COPY config.ini .
 
-RUN mkdir build && cd build \
-    && cmake -DCMAKE_BUILD_TYPE=Release .. \
-    && make -j"$(nproc)"
+RUN cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+    && cmake --build build -j"$(nproc)"
 
 # ==========================================================================
 # Runtime stage

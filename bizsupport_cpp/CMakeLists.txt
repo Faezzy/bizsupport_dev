@@ -6,23 +6,32 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 # --------------------------------------------------------------------------
-# FetchContent: cpp-httplib and nlohmann/json
+# Build accelerators (opt-in: only activated when tools are installed)
 # --------------------------------------------------------------------------
-include(FetchContent)
+find_program(CCACHE_PROGRAM ccache)
+if(CCACHE_PROGRAM)
+    set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE "${CCACHE_PROGRAM}")
+    message(STATUS "ccache enabled: ${CCACHE_PROGRAM}")
+endif()
 
-FetchContent_Declare(
-    httplib
-    GIT_REPOSITORY https://github.com/yhirose/cpp-httplib.git
-    GIT_TAG        v0.15.3
-)
+# Prefer Ninja if available and no generator was specified explicitly
+if(NOT CMAKE_GENERATOR)
+    find_program(NINJA_PROGRAM ninja)
+    if(NINJA_PROGRAM)
+        message(STATUS "Hint: re-configure with -G Ninja for faster builds")
+    endif()
+endif()
 
-FetchContent_Declare(
-    nlohmann_json
-    GIT_REPOSITORY https://github.com/nlohmann/json.git
-    GIT_TAG        v3.11.3
-)
-
-FetchContent_MakeAvailable(httplib nlohmann_json)
+# --------------------------------------------------------------------------
+# Third-party headers (vendored in third_party/)
+# --------------------------------------------------------------------------
+set(THIRD_PARTY_DIR "${CMAKE_SOURCE_DIR}/third_party")
+if(NOT EXISTS "${THIRD_PARTY_DIR}/httplib.h" OR
+   NOT EXISTS "${THIRD_PARTY_DIR}/nlohmann/json.hpp")
+    message(FATAL_ERROR
+        "Vendored headers missing. Expected ${THIRD_PARTY_DIR}/httplib.h "
+        "and ${THIRD_PARTY_DIR}/nlohmann/json.hpp")
+endif()
 
 # --------------------------------------------------------------------------
 # System packages
@@ -65,16 +74,28 @@ file(GLOB_RECURSE SOURCES "src/*.cpp")
 add_executable(bizsupport ${SOURCES})
 
 target_include_directories(bizsupport PRIVATE
+    ${THIRD_PARTY_DIR}
     ${PQXX_INCLUDE_DIRS}
     ${CMAKE_SOURCE_DIR}/src
 )
 
 target_link_libraries(bizsupport PRIVATE
-    httplib::httplib
-    nlohmann_json::nlohmann_json
     OpenSSL::SSL
     OpenSSL::Crypto
     ${PQXX_LIBRARIES}
     ${PQ_LIBRARY}
     Threads::Threads
+)
+
+# Precompiled header for the heaviest includes — biggest single win on
+# incremental builds (httplib.h alone is ~9k lines of templates).
+target_precompile_headers(bizsupport PRIVATE
+    <httplib.h>
+    <nlohmann/json.hpp>
+    <pqxx/pqxx>
+    <string>
+    <vector>
+    <optional>
+    <memory>
+    <unordered_map>
 )
