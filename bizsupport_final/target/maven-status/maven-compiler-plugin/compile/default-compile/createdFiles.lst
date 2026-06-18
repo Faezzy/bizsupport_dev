@@ -156,6 +156,7 @@ ru/bizsupport/repository/TenderRepository.class
 ru/bizsupport/dto/request/RegisterRequest.class
 ru/bizsupport/controller/api/LegalReferenceApiController.class
 ru/bizsupport/entity/Checklist.class
+ru/bizsupport/service/provider/EisZakupkiProvider.class
 ru/bizsupport/controller/ProfileController.class
 ru/bizsupport/service/LegalReferenceService.class
 ru/bizsupport/service/provider/MockTenderProvider.class

@@ -7,7 +7,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.*;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import ru.bizsupport.dto.TenderDtos.*;
 import ru.bizsupport.entity.Tender;
 import ru.bizsupport.entity.TenderLawType;
@@ -34,6 +36,9 @@ public class TenderService {
     @Value("${app.tenders.auto-load:true}")
     private boolean autoLoad;
 
+    @Value("${app.tenders.refresh-enabled:false}")
+    private boolean refreshEnabled;
+
     @PostConstruct
     public void init() {
         if (!autoLoad) return;
@@ -50,6 +55,36 @@ public class TenderService {
         List<Tender> initial = provider.fetchInitial();
         repo.saveAll(initial);
         log.info("Loaded {} tenders.", initial.size());
+    }
+
+    /**
+     * Периодическое обновление тендеров от активного провайдера.
+     * Интервал задаётся через app.tenders.refresh-cron (по умолчанию каждые 6 часов).
+     * Включается флагом app.tenders.refresh-enabled=true
+     */
+    @Scheduled(cron = "${app.tenders.refresh-cron:0 0 */6 * * *}")
+    @Transactional
+    public void scheduledRefresh() {
+        if (!refreshEnabled) return;
+        TenderProvider provider = providers.stream()
+                .filter(p -> p.getName().equals(activeProvider))
+                .filter(TenderProvider::supportsRefresh)
+                .findFirst().orElse(null);
+        if (provider == null) return;
+
+        log.info("Scheduled tender refresh via provider [{}]...", provider.getName());
+        List<Tender> updates = provider.fetchUpdates();
+        if (updates.isEmpty()) { log.info("No new tenders from provider."); return; }
+
+        int saved = 0;
+        for (Tender t : updates) {
+            if (t.getRegistryNumber() == null) continue;
+            if (repo.findByRegistryNumber(t.getRegistryNumber()).isEmpty()) {
+                repo.save(t);
+                saved++;
+            }
+        }
+        log.info("Refresh complete: {} new tenders saved (of {} fetched).", saved, updates.size());
     }
 
     /** Список с фильтрами и пагинацией */

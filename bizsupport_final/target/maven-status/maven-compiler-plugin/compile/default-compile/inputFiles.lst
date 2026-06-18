@@ -65,5 +65,6 @@
 /home/user/bizsupport_dev/bizsupport_final/src/main/java/ru/bizsupport/service/TaxService.java
 /home/user/bizsupport_dev/bizsupport_final/src/main/java/ru/bizsupport/service/TenderAnalysisService.java
 /home/user/bizsupport_dev/bizsupport_final/src/main/java/ru/bizsupport/service/TenderService.java
+/home/user/bizsupport_dev/bizsupport_final/src/main/java/ru/bizsupport/service/provider/EisZakupkiProvider.java
 /home/user/bizsupport_dev/bizsupport_final/src/main/java/ru/bizsupport/service/provider/MockTenderProvider.java
 /home/user/bizsupport_dev/bizsupport_final/src/main/java/ru/bizsupport/service/provider/TenderProvider.java
