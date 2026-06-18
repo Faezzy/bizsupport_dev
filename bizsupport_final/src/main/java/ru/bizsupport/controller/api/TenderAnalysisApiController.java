@@ -27,10 +27,12 @@ public class TenderAnalysisApiController {
     private final TenderAnalysisService analysisService;
 
     @PostMapping("/{id}/analyze")
-    public ResponseEntity<AnalysisResponse> analyzeSingle(@PathVariable Long id) {
+    public ResponseEntity<AnalysisResponse> analyzeSingle(
+            @PathVariable Long id,
+            @RequestParam(defaultValue = "false") boolean refresh) {
         try {
-            String result = analysisService.analyzeTender(id);
-            return ResponseEntity.ok(new AnalysisResponse(result, analysisService.getAssistantModel(), false));
+            String result = analysisService.analyzeTender(id, refresh);
+            return ResponseEntity.ok(reply(result));
         } catch (Exception e) {
             return ResponseEntity.ok(new AnalysisResponse("Ошибка анализа: " + e.getMessage(), null, true));
         }
@@ -43,7 +45,7 @@ public class TenderAnalysisApiController {
         }
         try {
             String result = analysisService.analyzeList(req.getIds());
-            return ResponseEntity.ok(new AnalysisResponse(result, analysisService.getAssistantModel(), false));
+            return ResponseEntity.ok(reply(result));
         } catch (Exception e) {
             return ResponseEntity.ok(new AnalysisResponse("Ошибка анализа: " + e.getMessage(), null, true));
         }
@@ -59,10 +61,16 @@ public class TenderAnalysisApiController {
             String result = ids.isEmpty()
                     ? analysisService.matchCurrentFeed(req.getCompanyContext())
                     : analysisService.matchTenders(req.getCompanyContext(), ids);
-            return ResponseEntity.ok(new AnalysisResponse(result, analysisService.getAssistantModel(), false));
+            return ResponseEntity.ok(reply(result));
         } catch (Exception e) {
             return ResponseEntity.ok(new AnalysisResponse("Ошибка матчинга: " + e.getMessage(), null, true));
         }
+    }
+
+    /** Оборачивает ответ ассистента, помечая служебные сообщения об ошибке. */
+    private AnalysisResponse reply(String result) {
+        boolean isError = TenderAnalysisService.isErrorResponse(result);
+        return new AnalysisResponse(result, analysisService.getAssistantModel(), isError);
     }
 
     // ─── DTOs ───────────────────────────────────────────────────────────────

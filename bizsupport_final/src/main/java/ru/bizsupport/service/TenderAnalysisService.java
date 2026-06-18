@@ -3,6 +3,7 @@ package ru.bizsupport.service;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import ru.bizsupport.dto.TenderDtos.TenderCard;
 import ru.bizsupport.dto.TenderDtos.TenderDetail;
 import ru.bizsupport.dto.TenderDtos.FilterRequest;
@@ -12,6 +13,7 @@ import ru.bizsupport.repository.TenderAnalysisCacheRepository;
 import ru.bizsupport.repository.TenderRepository;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Service
@@ -29,23 +31,40 @@ public class TenderAnalysisService {
      * При повторном запросе возвращает кэш, если он существует.
      */
     public String analyzeTender(Long tenderId) {
-        var cached = cacheRepo.findTopByTenderIdOrderByCreatedAtDesc(tenderId);
-        if (cached.isPresent()) {
-            log.debug("Returning cached analysis for tender {}", tenderId);
-            return cached.get().getAnalysis();
+        return analyzeTender(tenderId, false);
+    }
+
+    /**
+     * Анализ одного тендера.
+     * @param forceRefresh если true — игнорировать кэш и сделать новый запрос к LLM.
+     */
+    @Transactional
+    public String analyzeTender(Long tenderId, boolean forceRefresh) {
+        if (!forceRefresh) {
+            var cached = cacheRepo.findTopByTenderIdOrderByCreatedAtDesc(tenderId);
+            if (cached.isPresent()) {
+                log.debug("Returning cached analysis for tender {}", tenderId);
+                return cached.get().getAnalysis();
+            }
         }
 
         TenderDetail detail = tenderService.getDetail(tenderId);
         String prompt = buildSingleTenderPrompt(detail);
         String analysis = assistantService.chat(List.of(), prompt);
 
-        Tender tender = tenderRepository.findById(tenderId)
-                .orElseThrow(() -> new IllegalArgumentException("Tender not found: " + tenderId));
-        cacheRepo.save(TenderAnalysisCache.builder()
-                .tender(tender)
-                .model(assistantService.getModel())
-                .analysis(analysis)
-                .build());
+        // Не кэшируем ошибки ассистента (нет ключа, 429, таймаут) — иначе ошибка
+        // останется навсегда и кнопка «Обновить» не сможет переанализировать.
+        if (!isErrorResponse(analysis)) {
+            Tender tender = tenderRepository.findById(tenderId)
+                    .orElseThrow(() -> new IllegalArgumentException("Tender not found: " + tenderId));
+            // При повторном анализе удаляем старые записи, чтобы кэш не разрастался
+            cacheRepo.deleteByTenderId(tenderId);
+            cacheRepo.save(TenderAnalysisCache.builder()
+                    .tender(tender)
+                    .model(assistantService.getModel())
+                    .analysis(analysis)
+                    .build());
+        }
 
         return analysis;
     }
@@ -55,11 +74,10 @@ public class TenderAnalysisService {
      * по заданному профилю (категория, регион, бюджет, тип закона).
      */
     public String matchTenders(String companyContext, List<Long> tenderIds) {
-        List<TenderDetail> tenders = tenderIds.stream()
-                .limit(10)
-                .map(tenderService::getDetail)
-                .collect(Collectors.toList());
-
+        List<TenderDetail> tenders = loadDetails(tenderIds);
+        if (tenders.isEmpty()) {
+            return "Не удалось загрузить тендеры по указанным ID. Проверьте, что тендеры существуют.";
+        }
         String prompt = buildMatcherPrompt(companyContext, tenders);
         return assistantService.chat(List.of(), prompt);
     }
@@ -68,13 +86,38 @@ public class TenderAnalysisService {
      * Пакетный анализ списка тендеров: краткое сводное заключение.
      */
     public String analyzeList(List<Long> tenderIds) {
-        List<TenderDetail> tenders = tenderIds.stream()
-                .limit(10)
-                .map(tenderService::getDetail)
-                .collect(Collectors.toList());
-
+        List<TenderDetail> tenders = loadDetails(tenderIds);
+        if (tenders.isEmpty()) {
+            return "Не удалось загрузить тендеры по указанным ID. Проверьте, что тендеры существуют.";
+        }
         String prompt = buildListAnalysisPrompt(tenders);
         return assistantService.chat(List.of(), prompt);
+    }
+
+    /**
+     * Безопасно загружает детали тендеров: пропускает несуществующие ID,
+     * чтобы один неверный ID не уронил весь анализ.
+     */
+    private List<TenderDetail> loadDetails(List<Long> tenderIds) {
+        return tenderIds.stream()
+                .limit(10)
+                .map(id -> {
+                    try {
+                        return tenderService.getDetail(id);
+                    } catch (Exception e) {
+                        log.warn("Skipping tender {} in batch analysis: {}", id, e.getMessage());
+                        return null;
+                    }
+                })
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+    }
+
+    /** Признак того, что ответ ассистента — служебное сообщение об ошибке. */
+    public static boolean isErrorResponse(String s) {
+        if (s == null || s.isBlank()) return true;
+        String t = s.stripLeading();
+        return t.startsWith("⚠️") || t.startsWith("⚙️");
     }
 
     /**
