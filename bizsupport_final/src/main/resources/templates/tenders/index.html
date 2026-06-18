@@ -3,8 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>Тендеры — BizSupport</title>
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
-    <link rel="stylesheet" th:href="@{/css/app.css}">
+    <th:block th:replace="~{fragments/sidebar :: head}"/>
     <style>
         .tenders-layout { display: grid; grid-template-columns: 280px 1fr; gap: 24px; }
         .filter-panel { background: white; border: 1px solid var(--border); border-radius: 12px; padding: 20px; height: fit-content; position: sticky; top: 20px; }
@@ -85,7 +84,7 @@
 
 <div th:replace="~{fragments/sidebar :: sidebar('tenders')}"></div>
 
-<main class="main-content">
+<div class="main">
     <div class="page-header">
         <h1>Тендеры и госзакупки</h1>
         <p class="page-subtitle">Лента актуальных закупок 44-ФЗ и 223-ФЗ</p>
@@ -245,7 +244,7 @@
             </div>
         </div>
     </div>
-</main>
+</div>
 
 <!-- Save Search Modal -->
 <div id="saveSearchModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center">
@@ -288,6 +287,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/marked@12/marked.min.js"></script>
+<script th:replace="~{fragments/sidebar :: scripts}"></script>
 <script>
     function changeSort(value) {
         const url = new URL(window.location.href);
