@@ -14,6 +14,7 @@ import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
 import ru.bizsupport.dto.request.*;
 import ru.bizsupport.entity.*;
+import ru.bizsupport.entity.SavedSearch;
 import ru.bizsupport.repository.UserRepository;
 import ru.bizsupport.service.*;
 
@@ -538,6 +539,23 @@ class CalendarController {
         public String getType() { return type; }
         public String getUrl() { return url; }
         public String getDescription() { return description; }
+    }
+}
+
+// ── SAVED SEARCHES ────────────────────────────────────────────
+@Controller
+@RequestMapping("/saved-searches")
+@RequiredArgsConstructor
+class SavedSearchController {
+    private final UserRepository userRepo;
+    private final SavedSearchService savedSearchService;
+
+    @GetMapping
+    String savedSearchesPage(@AuthenticationPrincipal UserDetails ud, Model m) {
+        User user = userRepo.findByEmail(ud.getUsername()).orElseThrow();
+        List<SavedSearch> searches = savedSearchService.getUserSearches(user.getId());
+        m.addAttribute("searches", searches);
+        return "saved-searches/index";
     }
 }
 

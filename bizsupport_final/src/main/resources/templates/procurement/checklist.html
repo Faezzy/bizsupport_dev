@@ -35,7 +35,10 @@
     <span th:if="${step.completedAt != null}" style="font-size:.75rem;color:var(--muted)" th:text="${#temporals.format(step.completedAt, 'dd.MM HH:mm')}"></span>
   </div>
 
-  <div class="mt-3"><a th:href="@{/procurement/checklists}" class="btn-outline-custom"><i class="bi bi-arrow-left"></i> К чек-листам</a></div>
+  <div class="mt-3 d-flex gap-2">
+    <a th:href="@{/procurement/checklists}" class="btn-outline-custom no-print"><i class="bi bi-arrow-left"></i> К чек-листам</a>
+    <button class="btn-outline-custom no-print" onclick="window.print()"><i class="bi bi-file-pdf"></i> Скачать PDF</button>
+  </div>
 </div>
 <script th:replace="~{fragments/sidebar :: scripts}"></script>
 </body></html>

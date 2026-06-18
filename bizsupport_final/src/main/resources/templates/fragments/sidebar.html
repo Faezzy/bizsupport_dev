@@ -24,6 +24,7 @@
       <span>AI-ассистент</span>
     </a>
     <a th:href="@{/favorites}" th:classappend="${activePage == 'favorites'} ? 'active'"><i class="bi bi-star"></i> Избранное</a>
+    <a th:href="@{/saved-searches}" th:classappend="${activePage == 'saved-searches'} ? 'active'"><i class="bi bi-bookmark-star"></i> Сохранённые поиски</a>
     <a th:href="@{/notifications}" th:classappend="${activePage == 'notifications'} ? 'active'"><i class="bi bi-bell"></i> Уведомления<span id="notif-badge" class="badge bg-danger ms-auto" style="display:none;"></span></a>
     <div sec:authorize="hasRole('ADMIN')" style="border-top:1px solid #1E293B;margin:.5rem 0"></div>
     <a sec:authorize="hasRole('ADMIN')" th:href="@{/admin}" style="color:#A78BFA"><i class="bi bi-shield-lock"></i> Админ-панель</a>
@@ -37,6 +38,19 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet"/>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
   <link th:href="@{/css/app.css}" rel="stylesheet"/>
+  <style>
+    @media print {
+      .sidebar, .sidebar *, nav, .no-print { display: none !important; }
+      .main { margin-left: 0 !important; padding: 0 !important; max-width: 100% !important; }
+      .main-content { margin-left: 0 !important; padding: 20px !important; }
+      .print-header { display: block !important; }
+      body { background: white !important; font-size: 12px; }
+      a[href]::after { content: none !important; }
+      .btn, button:not(.print-show) { display: none !important; }
+      .page-header { border-bottom: 1px solid #ccc; padding-bottom: 10px; margin-bottom: 16px; }
+    }
+    .print-header { display: none; }
+  </style>
 </th:block>
 
 <!-- Notification badge script -->

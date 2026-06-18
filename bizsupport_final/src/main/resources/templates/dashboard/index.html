@@ -1,7 +1,18 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org">
 <head><meta charset="UTF-8"/><title>Главная — BizSupport</title>
-<th:block th:replace="~{fragments/sidebar :: head}"/></head>
+<th:block th:replace="~{fragments/sidebar :: head}"/>
+<style>
+  .analytics-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 1.5rem; }
+  .chart-card { background: white; border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+  .chart-card h5 { font-size: 13px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; margin: 0 0 16px; }
+  .analytics-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+  .a-stat { background: white; border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+  .a-stat .lbl { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; font-weight: 500; }
+  .a-stat .val { font-size: 22px; font-weight: 700; margin-top: 2px; }
+  @media (max-width: 900px) { .analytics-grid { grid-template-columns: 1fr; } .analytics-stats { grid-template-columns: repeat(2,1fr); } }
+</style>
+</head>
 <body>
 <th:block th:replace="~{fragments/sidebar :: sidebar(activePage='dashboard')}"/>
 <div class="main">
@@ -46,6 +57,25 @@
     </div>
   </div>
 
+  <!-- Analytics section -->
+  <h5 style="font-weight:600;margin-bottom:1rem"><i class="bi bi-bar-chart-line" style="color:var(--accent)"></i> Аналитика тендеров</h5>
+  <div class="analytics-stats" id="analyticsStats">
+    <div class="a-stat"><div class="lbl">Всего тендеров</div><div class="val" id="aStat-total">—</div></div>
+    <div class="a-stat"><div class="lbl">44-ФЗ</div><div class="val" id="aStat-fz44" style="color:var(--accent)">—</div></div>
+    <div class="a-stat"><div class="lbl">223-ФЗ</div><div class="val" id="aStat-fz223" style="color:#10B981">—</div></div>
+    <div class="a-stat"><div class="lbl">Только МСП</div><div class="val" id="aStat-msp" style="color:#F59E0B">—</div></div>
+  </div>
+  <div class="analytics-grid">
+    <div class="chart-card">
+      <h5>Распределение по типу закона</h5>
+      <canvas id="chartLaw" height="200"></canvas>
+    </div>
+    <div class="chart-card">
+      <h5>Динамика за 6 месяцев</h5>
+      <canvas id="chartMonth" height="200"></canvas>
+    </div>
+  </div>
+
   <h5 style="font-weight:600;margin-bottom:1rem">Быстрый старт</h5>
   <div class="row g-3">
     <div class="col-md-6"><a th:href="@{/tax/calculator}" class="action-card"><div class="icon-circle blue"><i class="bi bi-graph-up"></i></div><div><div class="action-title">Калькулятор налогов</div><div class="action-desc">Сравнить УСН 6%, 15%, ОСНО, ПСН, НПД</div></div></a></div>
@@ -56,5 +86,61 @@
     <div class="col-md-6"><a th:href="@{/assistant}" class="action-card"><div class="icon-circle blue"><i class="bi bi-robot"></i></div><div><div class="action-title">AI-ассистент</div><div class="action-desc">Анализ тендеров и матчер под вашу компанию</div></div></a></div>
   </div>
 </div>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script>
+(async function initAnalytics() {
+    try {
+        const data = await fetch('/api/analytics/tenders').then(r => r.json());
+        document.getElementById('aStat-total').textContent = data.total;
+        document.getElementById('aStat-fz44').textContent = data.fz44Count;
+        document.getElementById('aStat-fz223').textContent = data.fz223Count;
+        document.getElementById('aStat-msp').textContent = data.mspOnlyCount;
+
+        // Doughnut: law type distribution
+        new Chart(document.getElementById('chartLaw'), {
+            type: 'doughnut',
+            data: {
+                labels: ['44-ФЗ', '223-ФЗ'],
+                datasets: [{
+                    data: [data.fz44Count, data.fz223Count],
+                    backgroundColor: ['#3B82F6', '#10B981'],
+                    borderWidth: 2,
+                    borderColor: '#fff'
+                }]
+            },
+            options: {
+                plugins: { legend: { position: 'bottom', labels: { padding: 16, font: { size: 13 } } } },
+                cutout: '65%'
+            }
+        });
+
+        // Bar: monthly dynamics
+        const months = (data.byMonth || []).map(m => m.label);
+        const counts = (data.byMonth || []).map(m => m.count);
+        new Chart(document.getElementById('chartMonth'), {
+            type: 'bar',
+            data: {
+                labels: months,
+                datasets: [{
+                    label: 'Тендеров опубликовано',
+                    data: counts,
+                    backgroundColor: 'rgba(59,130,246,0.7)',
+                    borderRadius: 6
+                }]
+            },
+            options: {
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: { beginAtZero: true, ticks: { stepSize: 1 } },
+                    x: { grid: { display: false } }
+                }
+            }
+        });
+    } catch(e) {
+        document.getElementById('analyticsStats').innerHTML =
+            '<div style="color:var(--muted);font-size:.85rem;padding:8px 0">Аналитика недоступна</div>';
+    }
+})();
+</script>
 <script th:replace="~{fragments/sidebar :: scripts}"></script>
 </body></html>

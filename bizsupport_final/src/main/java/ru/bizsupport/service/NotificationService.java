@@ -60,6 +60,18 @@ public class NotificationService {
         notificationRepo.deleteById(notificationId);
     }
 
+    /** Создать информационное уведомление (не связанное с конкретным дедлайном). */
+    @Transactional
+    public Notification createInfo(User user, String title, String message) {
+        return notificationRepo.save(Notification.builder()
+                .user(user)
+                .title(title)
+                .message(message)
+                .sendAt(LocalDateTime.now())
+                .isRead(false)
+                .build());
+    }
+
     // ── Генерация уведомлений ─────────────────────────────────
     // Запускается каждый день в 07:00
     // За 7, 3 и 1 день до дедлайна создаёт уведомление,

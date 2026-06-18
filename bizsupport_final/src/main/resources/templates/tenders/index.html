@@ -162,6 +162,15 @@
                     <button type="submit" class="btn btn-primary">Применить</button>
                     <a href="/tenders" class="btn btn-secondary" style="text-decoration: none;">Сброс</a>
                 </div>
+                <div style="margin-top:10px">
+                    <button type="button" class="btn btn-secondary" style="width:100%;font-size:12px"
+                            onclick="openSaveSearchModal()">
+                        <i class="bi bi-bookmark-plus"></i> Сохранить поиск
+                    </button>
+                    <a href="/saved-searches" style="display:block;text-align:center;font-size:11px;color:var(--muted);text-decoration:none;margin-top:6px">
+                        Мои сохранённые поиски →
+                    </a>
+                </div>
             </form>
         </aside>
 
@@ -237,6 +246,26 @@
         </div>
     </div>
 </main>
+
+<!-- Save Search Modal -->
+<div id="saveSearchModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center">
+    <div style="background:white;border-radius:12px;padding:28px;max-width:440px;width:90%">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+            <h2 style="margin:0;font-size:16px">💾 Сохранить поиск</h2>
+            <button onclick="closeSaveModal()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--muted)">✕</button>
+        </div>
+        <label style="font-size:13px;font-weight:500;display:block;margin-bottom:6px">Название поиска</label>
+        <input id="searchSaveName" type="text" placeholder="например, Строительство Москва МСП"
+               style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;outline:none;box-sizing:border-box">
+        <div style="font-size:12px;color:var(--muted);margin-top:6px;margin-bottom:16px">
+            Будут сохранены текущие фильтры. Получите уведомление при появлении новых тендеров.
+        </div>
+        <div style="display:flex;gap:8px">
+            <button onclick="saveCurrentSearch()" class="btn btn-primary" style="flex:1">Сохранить</button>
+            <button onclick="closeSaveModal()" class="btn btn-secondary">Отмена</button>
+        </div>
+    </div>
+</div>
 
 <!-- AI Analysis Modal -->
 <div id="aiModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center">
@@ -319,6 +348,58 @@
     document.getElementById('aiModal').addEventListener('click', function(e) {
         if (e.target === this) closeAiModal();
     });
+
+    // ── Save Search ──────────────────────────────────────────────
+    function openSaveSearchModal() {
+        const params = new URLSearchParams(window.location.search);
+        const parts = [];
+        if (params.get('query')) parts.push(params.get('query'));
+        const lt = params.get('lawType');
+        if (lt) parts.push(lt === 'FZ_44' ? '44-ФЗ' : '223-ФЗ');
+        if (params.get('region')) parts.push(params.get('region'));
+        if (params.get('mspOnly') === 'true') parts.push('МСП');
+        document.getElementById('searchSaveName').value = parts.join(' ') || 'Мой поиск';
+        document.getElementById('saveSearchModal').style.display = 'flex';
+        document.getElementById('searchSaveName').focus();
+    }
+
+    function closeSaveModal() {
+        document.getElementById('saveSearchModal').style.display = 'none';
+    }
+
+    document.getElementById('saveSearchModal').addEventListener('click', function(e) {
+        if (e.target === this) closeSaveModal();
+    });
+
+    async function saveCurrentSearch() {
+        const name = document.getElementById('searchSaveName').value.trim();
+        if (!name) { alert('Введите название поиска'); return; }
+        const params = new URLSearchParams(window.location.search);
+        const body = {
+            name,
+            query: params.get('query') || null,
+            lawType: params.get('lawType') || null,
+            priceFrom: params.get('priceFrom') ? parseFloat(params.get('priceFrom')) : null,
+            priceTo: params.get('priceTo') ? parseFloat(params.get('priceTo')) : null,
+            region: params.get('region') || null,
+            mspOnly: params.get('mspOnly') === 'true'
+        };
+        try {
+            const r = await fetch('/api/saved-searches', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            });
+            const d = await r.json();
+            if (d.error) { alert(d.error); return; }
+            closeSaveModal();
+            const toast = document.createElement('div');
+            toast.textContent = '✅ Поиск «' + d.name + '» сохранён!';
+            Object.assign(toast.style, {position:'fixed',bottom:'24px',right:'24px',background:'#10B981',color:'white',padding:'12px 20px',borderRadius:'8px',zIndex:9999,fontSize:'14px',fontWeight:'500'});
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 3500);
+        } catch(e) { alert('Войдите в систему, чтобы сохранять поиски'); }
+    }
 </script>
 
 </body>

@@ -35,7 +35,10 @@
     </form>
   </div>
   <div th:if="${results != null}">
-    <h5 style="font-weight:600;margin-bottom:1rem"><i class="bi bi-bar-chart"></i> Результаты <span style="font-weight:400;font-size:.85rem;color:var(--muted)">(по возрастанию нагрузки)</span></h5>
+    <div class="d-flex align-items-center justify-content-between mb-3">
+      <h5 style="font-weight:600;margin:0"><i class="bi bi-bar-chart"></i> Результаты <span style="font-weight:400;font-size:.85rem;color:var(--muted)">(по возрастанию нагрузки)</span></h5>
+      <button class="btn-outline-custom no-print" onclick="window.print()" style="font-size:.85rem"><i class="bi bi-file-pdf"></i> Скачать PDF</button>
+    </div>
     <div class="row">
       <div th:each="r : ${results}" class="col-lg-6">
         <div class="result-card" th:classappend="${r.best} ? 'best'">

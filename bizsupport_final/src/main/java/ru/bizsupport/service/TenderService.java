@@ -17,6 +17,8 @@ import ru.bizsupport.entity.TenderStatus;
 import ru.bizsupport.repository.TenderRepository;
 import ru.bizsupport.service.provider.TenderProvider;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
@@ -141,6 +143,54 @@ public class TenderService {
                 .published(repo.countByStatus(TenderStatus.PUBLISHED))
                 .underReview(repo.countByStatus(TenderStatus.UNDER_REVIEW))
                 .completed(repo.countByStatus(TenderStatus.COMPLETED))
+                .build();
+    }
+
+    /** Аналитика для дашборда: распределение по типу закона, статусу и динамика по месяцам. */
+    public TenderAnalytics getAnalytics() {
+        List<Tender> all = repo.findAll();
+
+        long fz44 = all.stream().filter(t -> t.getLawType() == TenderLawType.FZ_44).count();
+        long fz223 = all.stream().filter(t -> t.getLawType() == TenderLawType.FZ_223).count();
+        long mspOnly = all.stream().filter(t -> Boolean.TRUE.equals(t.getMspOnly())).count();
+
+        List<Tender> withPrice = all.stream().filter(t -> t.getInitialPrice() != null).toList();
+        BigDecimal avgPrice = BigDecimal.ZERO;
+        if (!withPrice.isEmpty()) {
+            BigDecimal sum = withPrice.stream().map(Tender::getInitialPrice).reduce(BigDecimal.ZERO, BigDecimal::add);
+            avgPrice = sum.divide(BigDecimal.valueOf(withPrice.size()), 0, RoundingMode.HALF_UP);
+        }
+
+        // Последние 6 месяцев, включая текущий
+        String[] monthNames = {"Янв","Фев","Мар","Апр","Май","Июн","Июл","Авг","Сен","Окт","Ноя","Дек"};
+        LocalDateTime sixAgo = LocalDateTime.now().minusMonths(5).withDayOfMonth(1).withHour(0).withMinute(0).withSecond(0);
+        Map<String, Long> counts = all.stream()
+                .filter(t -> t.getPublishedAt() != null && !t.getPublishedAt().isBefore(sixAgo))
+                .collect(Collectors.groupingBy(
+                        t -> t.getPublishedAt().getYear() + "-"
+                                + String.format("%02d", t.getPublishedAt().getMonthValue()),
+                        Collectors.counting()));
+
+        List<TenderAnalytics.MonthlyCount> byMonth = new ArrayList<>();
+        LocalDateTime cursor = sixAgo;
+        LocalDateTime now = LocalDateTime.now();
+        while (!cursor.isAfter(now)) {
+            String key = cursor.getYear() + "-" + String.format("%02d", cursor.getMonthValue());
+            String label = monthNames[cursor.getMonthValue() - 1] + " " + cursor.getYear();
+            byMonth.add(new TenderAnalytics.MonthlyCount(key, label, counts.getOrDefault(key, 0L)));
+            cursor = cursor.plusMonths(1);
+        }
+
+        return TenderAnalytics.builder()
+                .total(repo.count())
+                .fz44Count(fz44)
+                .fz223Count(fz223)
+                .published(repo.countByStatus(TenderStatus.PUBLISHED))
+                .underReview(repo.countByStatus(TenderStatus.UNDER_REVIEW))
+                .completed(repo.countByStatus(TenderStatus.COMPLETED))
+                .mspOnlyCount(mspOnly)
+                .avgPrice(avgPrice)
+                .byMonth(byMonth)
                 .build();
     }
 

@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head><meta charset="UTF-8"/><title>Сохранённые поиски — BizSupport</title>
+<th:block th:replace="~{fragments/sidebar :: head}"/>
+<style>
+  .search-card{background:#fff;border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:14px}
+  .search-card-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+  .search-card-name{font-weight:600;font-size:15px}
+  .search-meta{font-size:.8rem;color:var(--muted);margin-bottom:10px}
+  .search-filters{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+  .filter-tag{background:#F1F5F9;color:var(--text);border-radius:6px;padding:3px 10px;font-size:.8rem}
+  .result-item{display:flex;justify-content:space-between;align-items:flex-start;padding:8px 0;border-bottom:1px solid #F8FAFC;font-size:.85rem}
+  .result-item:last-child{border:none}
+  .result-title a{color:var(--text);text-decoration:none;font-weight:500}
+  .result-title a:hover{color:var(--accent)}
+  .result-price{color:var(--muted);white-space:nowrap;padding-left:8px}
+  .collapse-btn{background:none;border:none;cursor:pointer;color:var(--accent);font-size:.85rem;font-weight:500;padding:0}
+  .results-area{display:none;margin-top:12px;border-top:1px solid #F1F5F9;padding-top:10px}
+  .results-area.open{display:block}
+</style>
+</head>
+<body>
+<th:block th:replace="~{fragments/sidebar :: sidebar(activePage='saved-searches')}"/>
+<div class="main">
+  <div class="page-header">
+    <h1><i class="bi bi-bookmark-star" style="color:var(--accent)"></i> Сохранённые поиски</h1>
+    <p>Ваши сохранённые фильтры по тендерам — система уведомит о новых совпадениях</p>
+  </div>
+
+  <div th:if="${#lists.isEmpty(searches)}" class="empty-state">
+    <i class="bi bi-bookmark-x" style="font-size:36px"></i>
+    <p>У вас нет сохранённых поисков</p>
+    <a th:href="@{/tenders}" class="btn-accent mt-2">Перейти к тендерам</a>
+  </div>
+
+  <div th:each="ss : ${searches}" class="search-card">
+    <div class="search-card-head">
+      <div class="search-card-name" th:text="${ss.name}">Название</div>
+      <button onclick="deleteSearch(this)" th:data-id="${ss.id}"
+              style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:18px;line-height:1" title="Удалить">✕</button>
+    </div>
+
+    <div class="search-meta">
+      Создан <span th:text="${#temporals.format(ss.createdAt, 'dd.MM.yyyy')}"></span>
+      <span th:if="${ss.lastCheckedAt}">
+        · проверен <span th:text="${#temporals.format(ss.lastCheckedAt, 'dd.MM.yyyy HH:mm')}"></span>
+      </span>
+      <span th:if="${ss.lastResultCount >= 0}">
+        · <strong th:text="${ss.lastResultCount}"></strong> тендеров при последней проверке
+      </span>
+    </div>
+
+    <div class="search-filters">
+      <span class="filter-tag" th:if="${ss.query != null and !ss.query.isBlank()}">
+        🔍 <span th:text="${ss.query}"></span>
+      </span>
+      <span class="filter-tag" th:if="${ss.lawType != null and !ss.lawType.isBlank()}"
+            th:text="${ss.lawType == 'FZ_44' ? '44-ФЗ' : '223-ФЗ'}">44-ФЗ</span>
+      <span class="filter-tag" th:if="${ss.region != null and !ss.region.isBlank()}"
+            th:text="'📍 ' + ${ss.region}">Регион</span>
+      <span class="filter-tag" th:if="${ss.priceFrom != null}">
+        от <span th:text="${#numbers.formatDecimal(ss.priceFrom, 0, 'WHITESPACE', 0, 'COMMA')}"></span> ₽
+      </span>
+      <span class="filter-tag" th:if="${ss.priceTo != null}">
+        до <span th:text="${#numbers.formatDecimal(ss.priceTo, 0, 'WHITESPACE', 0, 'COMMA')}"></span> ₽
+      </span>
+      <span class="filter-tag" th:if="${ss.mspOnly}">МСП</span>
+      <span class="filter-tag" th:if="${ss.query == null and ss.lawType == null and ss.region == null and !ss.mspOnly}"
+            style="color:var(--muted)">Все тендеры</span>
+    </div>
+
+    <div>
+      <button class="collapse-btn" th:data-ssid="${ss.id}" onclick="toggleResults(this)">
+        ▶ Показать совпадения
+      </button>
+      <div class="results-area" th:id="'results-' + ${ss.id}">
+        <div class="loading" style="color:var(--muted);font-size:.85rem;padding:8px 0">Загружаю...</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+async function toggleResults(btn) {
+    const id = btn.getAttribute('data-ssid');
+    const area = document.getElementById('results-' + id);
+    const isOpen = area.classList.contains('open');
+    if (isOpen) {
+        area.classList.remove('open');
+        btn.textContent = '▶ Показать совпадения';
+        return;
+    }
+    area.classList.add('open');
+    btn.textContent = '▼ Скрыть совпадения';
+    if (area.dataset.loaded) return;
+
+    try {
+        const r = await fetch('/api/saved-searches/' + id + '/run');
+        const items = await r.json();
+        area.dataset.loaded = '1';
+        if (!items.length) {
+            area.innerHTML = '<div style="color:var(--muted);font-size:.85rem;padding:8px 0">Совпадений не найдено</div>';
+            return;
+        }
+        area.innerHTML = items.map(t => `
+            <div class="result-item">
+                <div class="result-title"><a href="/tenders/${t.id}">${escHtml(t.title)}</a>
+                    <span style="font-size:.75rem;margin-left:6px;color:var(--muted)">${t.lawTypeDisplay || ''}</span>
+                </div>
+                <div class="result-price">${formatPrice(t.initialPrice)} ₽</div>
+            </div>`).join('');
+    } catch(e) {
+        area.innerHTML = '<div style="color:var(--danger);font-size:.85rem">Ошибка загрузки</div>';
+    }
+}
+
+async function deleteSearch(btn) {
+    const id = btn.getAttribute('data-id');
+    if (!confirm('Удалить сохранённый поиск?')) return;
+    try {
+        await fetch('/api/saved-searches/' + id, { method: 'DELETE' });
+        btn.closest('.search-card').remove();
+        if (!document.querySelector('.search-card')) location.reload();
+    } catch(e) { alert('Ошибка удаления'); }
+}
+
+function escHtml(s) {
+    const d = document.createElement('div');
+    d.textContent = s || '';
+    return d.innerHTML;
+}
+
+function formatPrice(n) {
+    if (!n) return '0';
+    return Math.round(n).toLocaleString('ru-RU');
+}
+</script>
+<script th:replace="~{fragments/sidebar :: scripts}"></script>
+</body></html>

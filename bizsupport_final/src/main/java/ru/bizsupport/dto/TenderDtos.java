@@ -100,6 +100,31 @@ public class TenderDtos {
         private long completed;
     }
 
+    /** Аналитика тендеров для дашборда */
+    @Data
+    @Builder
+    @AllArgsConstructor
+    @NoArgsConstructor
+    public static class TenderAnalytics {
+        private long total;
+        private long fz44Count;
+        private long fz223Count;
+        private long published;
+        private long underReview;
+        private long completed;
+        private long mspOnlyCount;
+        private BigDecimal avgPrice;
+        private List<MonthlyCount> byMonth;
+
+        @Data
+        @AllArgsConstructor
+        public static class MonthlyCount {
+            private String month;
+            private String label;
+            private long count;
+        }
+    }
+
     /** Ответ списка с метаданными для фильтров */
     @Data
     @Builder
