@@ -118,6 +118,23 @@ public class TenderService {
         return toDetail(t);
     }
 
+    /** Ближайшие по дедлайну открытые тендеры — для виджета на дашборде. */
+    public List<TenderCard> getUpcoming(int limit) {
+        return repo.findByStatusAndSubmissionDeadlineAfterOrderBySubmissionDeadlineAsc(
+                        TenderStatus.PUBLISHED, LocalDateTime.now(), PageRequest.of(0, limit))
+                .stream().map(this::toCard).collect(Collectors.toList());
+    }
+
+    /** Карточки по списку ID (для страницы «Избранное»). Несуществующие ID пропускаются. */
+    public List<TenderCard> getCardsByIds(List<Long> ids) {
+        return ids.stream()
+                .map(repo::findById)
+                .filter(Optional::isPresent)
+                .map(Optional::get)
+                .map(this::toCard)
+                .collect(Collectors.toList());
+    }
+
     public TenderStats getStats() {
         return TenderStats.builder()
                 .total(repo.count())

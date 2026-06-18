@@ -10,6 +10,7 @@ import ru.bizsupport.repository.*;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 @Service
@@ -20,6 +21,8 @@ public class NotificationService {
     private final NotificationRepository notificationRepo;
     private final DeadlineRepository deadlineRepo;
     private final CompanyProfileRepository profileRepo;
+    private final UserFavoriteRepository favoriteRepo;
+    private final TenderRepository tenderRepo;
 
     // ── Чтение ────────────────────────────────────────────────
 
@@ -96,6 +99,68 @@ public class NotificationService {
             }
         }
         log.info("Создано {} напоминаний", created);
+    }
+
+    // ── Напоминания по дедлайнам тендеров из избранного ───────
+    // Запускается ежедневно в 07:30.
+    // За 7, 3 и 1 день до окончания подачи заявок создаёт уведомление
+    // по каждому тендеру, добавленному пользователем в избранное.
+
+    @Scheduled(cron = "${app.notifications.tender-cron:0 30 7 * * *}")
+    @Transactional
+    public void generateTenderDeadlineReminders() {
+        log.info("Генерация напоминаний по дедлайнам тендеров...");
+        int[] remindDays = {7, 3, 1};
+        LocalDate today = LocalDate.now();
+        int created = 0;
+
+        List<UserFavorite> tenderFavorites = favoriteRepo.findByEntityType(EntityType.TENDER);
+
+        for (UserFavorite fav : tenderFavorites) {
+            Tender tender = tenderRepo.findById(fav.getEntityId()).orElse(null);
+            if (tender == null || tender.getSubmissionDeadline() == null) continue;
+
+            long daysLeft = ChronoUnit.DAYS.between(today, tender.getSubmissionDeadline().toLocalDate());
+            for (int daysBefore : remindDays) {
+                if (daysLeft == daysBefore
+                        && !alreadyNotifiedTender(fav.getUser().getId(), tender.getRegistryNumber(), daysBefore)) {
+                    createTenderReminder(fav.getUser(), tender, daysBefore);
+                    created++;
+                }
+            }
+        }
+        log.info("Создано {} напоминаний по тендерам", created);
+    }
+
+    private boolean alreadyNotifiedTender(Long userId, String registryNumber, int daysBefore) {
+        LocalDateTime from = LocalDateTime.now().minusHours(12);
+        LocalDateTime to = LocalDateTime.now().plusHours(12);
+        return notificationRepo.findByUserIdOrderByCreatedAtDesc(userId).stream()
+                .anyMatch(n -> n.getMessage() != null
+                        && n.getMessage().contains(registryNumber)
+                        && n.getTitle() != null
+                        && n.getTitle().contains(daysBefore + " дн.")
+                        && n.getCreatedAt() != null
+                        && n.getCreatedAt().isAfter(from)
+                        && n.getCreatedAt().isBefore(to));
+    }
+
+    private void createTenderReminder(User user, Tender tender, int daysBefore) {
+        String urgency = switch (daysBefore) {
+            case 1 -> "Срочно! 1 дн.";
+            default -> "Через " + daysBefore + " дн.";
+        };
+        Notification notification = Notification.builder()
+                .user(user)
+                .deadline(null) // тендерные напоминания не привязаны к налоговым дедлайнам
+                .title(urgency + ": подача заявок по тендеру")
+                .message("Тендер «" + tender.getTitle() + "» (рег. № " + tender.getRegistryNumber()
+                        + "). Приём заявок до " + tender.getSubmissionDeadline().toLocalDate()
+                        + ". Не пропустите дедлайн подачи.")
+                .isRead(false)
+                .sendAt(LocalDateTime.now())
+                .build();
+        notificationRepo.save(notification);
     }
 
     // ── Вспомогательные методы ────────────────────────────────

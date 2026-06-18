@@ -4,12 +4,15 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
+import ru.bizsupport.entity.User;
+import ru.bizsupport.repository.UserRepository;
 import ru.bizsupport.service.TenderAnalysisService;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Map;
 
 /**
  * REST-эндпоинты вспомогательного модуля AI-анализа тендеров.
@@ -25,6 +28,23 @@ import java.util.Map;
 public class TenderAnalysisApiController {
 
     private final TenderAnalysisService analysisService;
+    private final UserRepository userRepository;
+
+    /** AI-матчер на основе профиля текущего пользователя (без ручного ввода). */
+    @PostMapping("/match-profile")
+    public ResponseEntity<AnalysisResponse> matchByProfile(@AuthenticationPrincipal UserDetails ud) {
+        if (ud == null) {
+            return ResponseEntity.ok(new AnalysisResponse("Требуется авторизация", null, true));
+        }
+        try {
+            User user = userRepository.findByEmail(ud.getUsername())
+                    .orElseThrow(() -> new IllegalStateException("Пользователь не найден"));
+            String result = analysisService.matchByUserProfile(user.getId());
+            return ResponseEntity.ok(reply(result));
+        } catch (Exception e) {
+            return ResponseEntity.ok(new AnalysisResponse("Ошибка матчинга: " + e.getMessage(), null, true));
+        }
+    }
 
     @PostMapping("/{id}/analyze")
     public ResponseEntity<AnalysisResponse> analyzeSingle(

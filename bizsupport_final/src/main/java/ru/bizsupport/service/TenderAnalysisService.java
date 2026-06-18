@@ -7,6 +7,7 @@ import org.springframework.transaction.annotation.Transactional;
 import ru.bizsupport.dto.TenderDtos.TenderCard;
 import ru.bizsupport.dto.TenderDtos.TenderDetail;
 import ru.bizsupport.dto.TenderDtos.FilterRequest;
+import ru.bizsupport.entity.CompanyProfile;
 import ru.bizsupport.entity.Tender;
 import ru.bizsupport.entity.TenderAnalysisCache;
 import ru.bizsupport.repository.TenderAnalysisCacheRepository;
@@ -14,6 +15,7 @@ import ru.bizsupport.repository.TenderRepository;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -25,6 +27,7 @@ public class TenderAnalysisService {
     private final TenderRepository tenderRepository;
     private final TenderAnalysisCacheRepository cacheRepo;
     private final AssistantService assistantService;
+    private final CompanyProfileService companyProfileService;
 
     /**
      * Анализ одного тендера с кэшированием результата.
@@ -132,6 +135,35 @@ public class TenderAnalysisService {
                 .map(TenderCard::getId)
                 .collect(Collectors.toList());
         return matchTenders(companyContext, ids);
+    }
+
+    /**
+     * AI-матчер на основе профиля компании пользователя.
+     * Автоматически собирает контекст из CompanyProfile — без ручного ввода.
+     */
+    public String matchByUserProfile(Long userId) {
+        Optional<CompanyProfile> profileOpt = companyProfileService.findByUserId(userId);
+        if (profileOpt.isEmpty()) {
+            return "⚙️ Профиль компании не заполнен.\n\nЗаполните профиль (тип, отрасль, выручка), " +
+                   "и AI подберёт тендеры под вашу компанию автоматически.";
+        }
+        return matchCurrentFeed(buildCompanyContext(profileOpt.get()));
+    }
+
+    /** Собирает текстовое описание компании из профиля (только скалярные поля — без ленивых связей). */
+    private String buildCompanyContext(CompanyProfile p) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(p.getCompanyType() != null ? p.getCompanyType().getDisplayName() : "Компания");
+        if (p.getCompanyName() != null) sb.append(" \"").append(p.getCompanyName()).append("\"");
+        if (p.getIndustry() != null && !p.getIndustry().isBlank())
+            sb.append(", отрасль: ").append(p.getIndustry());
+        if (p.getEmployeesCount() != null)
+            sb.append(", сотрудников: ").append(p.getEmployeesCount());
+        if (p.getAnnualRevenue() != null)
+            sb.append(", годовая выручка: ").append(fmtPrice(p.getAnnualRevenue())).append(" ₽");
+        sb.append(", статус МСП: ").append(Boolean.TRUE.equals(p.getIsMsp()) ? "да" : "нет");
+        sb.append(". Подбери тендеры, наиболее подходящие под профиль и масштаб этой компании.");
+        return sb.toString();
     }
 
     // ─── Prompt builders ────────────────────────────────────────────────────

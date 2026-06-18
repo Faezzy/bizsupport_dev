@@ -58,6 +58,7 @@ class DashboardController {
     private final CompanyProfileService profileService;
     private final TaxService taxService;
     private final ProcurementService procurementService;
+    private final TenderService tenderService;
 
     @GetMapping({"/", "/dashboard"})
     String dashboard(@AuthenticationPrincipal UserDetails ud, Model m) {
@@ -68,6 +69,8 @@ class DashboardController {
             m.addAttribute("currentRegimes", taxService.getCompanyCurrentRegimes(profile.getId()));
             m.addAttribute("checklists", procurementService.getUserChecklists(user.getId()));
         });
+        // Виджет: ближайшие по дедлайну открытые тендеры
+        m.addAttribute("upcomingTenders", tenderService.getUpcoming(5));
         return "dashboard/index";
     }
 }
@@ -339,6 +342,7 @@ class FavoritesPageController {
     private final FavoriteService favoriteService;
     private final TaxService taxService;
     private final ProcurementService procurementService;
+    private final TenderService tenderService;
 
     @GetMapping
     String favoritesPage(@AuthenticationPrincipal UserDetails ud, Model m) {
@@ -368,6 +372,12 @@ class FavoritesPageController {
                     ProcurementScenario s = procurementService.getScenarioById(fav.getEntityId());
                     item.put("title", s.getTitle());
                     item.put("url", "/procurement/scenario/" + s.getId());
+                } catch (Exception ignored) {}
+            } else if (fav.getEntityType() == EntityType.TENDER) {
+                try {
+                    var t = tenderService.getDetail(fav.getEntityId());
+                    item.put("title", t.getTitle());
+                    item.put("url", "/tenders/" + t.getId());
                 } catch (Exception ignored) {}
             }
             if (item.containsKey("title")) enriched.add(item);

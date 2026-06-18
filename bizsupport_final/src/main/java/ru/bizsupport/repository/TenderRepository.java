@@ -8,6 +8,7 @@ import org.springframework.stereotype.Repository;
 import ru.bizsupport.entity.Tender;
 import ru.bizsupport.entity.TenderStatus;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -19,6 +20,10 @@ public interface TenderRepository extends JpaRepository<Tender, Long>, JpaSpecif
     List<Tender> findTop10ByStatusOrderByPublishedAtDesc(TenderStatus status);
 
     Page<Tender> findByStatus(TenderStatus status, Pageable pageable);
+
+    /** Ближайшие по дедлайну открытые тендеры (для виджета на дашборде) */
+    List<Tender> findByStatusAndSubmissionDeadlineAfterOrderBySubmissionDeadlineAsc(
+            TenderStatus status, LocalDateTime after, Pageable pageable);
 
     long countByStatus(TenderStatus status);
 }

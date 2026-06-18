@@ -72,6 +72,23 @@
         .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid #ffffff55; border-top-color: white; border-radius: 50%; animation: spin 0.6s linear infinite; margin-right: 6px; }
         @keyframes spin { to { transform: rotate(360deg); } }
         .ids-hint { font-size: 12px; color: var(--muted); margin-top: 6px; }
+
+        /* ── Markdown-рендеринг ответов ИИ ── */
+        .md p { margin: 0 0 8px; }
+        .md p:last-child { margin-bottom: 0; }
+        .md ul, .md ol { margin: 4px 0 10px; padding-left: 22px; }
+        .md li { margin-bottom: 3px; }
+        .md h1, .md h2, .md h3, .md h4 { margin: 12px 0 6px; font-weight: 600; line-height: 1.3; }
+        .md h1 { font-size: 18px; } .md h2 { font-size: 16px; } .md h3 { font-size: 15px; } .md h4 { font-size: 14px; }
+        .md code { background: rgba(0,0,0,0.06); padding: 1px 5px; border-radius: 4px; font-size: 0.9em; font-family: monospace; }
+        .md pre { background: rgba(0,0,0,0.06); padding: 10px 12px; border-radius: 6px; overflow-x: auto; }
+        .md pre code { background: none; padding: 0; }
+        .md strong { font-weight: 600; }
+        .md table { border-collapse: collapse; margin: 8px 0; font-size: 13px; }
+        .md th, .md td { border: 1px solid var(--border); padding: 5px 9px; text-align: left; }
+        .md blockquote { border-left: 3px solid var(--border); margin: 8px 0; padding: 2px 12px; color: var(--muted); }
+        .md a { color: var(--accent); }
+        .msg.user .md a { color: #DBEAFE; }
     </style>
 </head>
 <body>
@@ -183,6 +200,10 @@
             <div class="ai-section">
                 <h3>🎯 AI-матчер тендеров</h3>
                 <p>Опишите ваш бизнес — AI подберёт из текущей ленты тендеры, которые лучше всего подходят вашей компании.</p>
+                <div style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:8px;padding:12px 14px;margin-bottom:12px;font-size:13px;color:#1E40AF;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+                    <span>🏢 Не хотите вписывать вручную? Подберём на основе вашего профиля компании.</span>
+                    <button class="btn btn-primary" id="matchProfileBtn" onclick="matchByProfile()" style="white-space:nowrap">Подобрать по профилю</button>
+                </div>
                 <textarea id="companyCtx" rows="4" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:14px;resize:vertical;outline:none;margin-bottom:10px"
                     placeholder="Например: ИП, строительство, Московская область, УСН, опыт 5 лет. Интересуют контракты до 5 млн руб. по 44-ФЗ, МСП-квота приветствуется."></textarea>
                 <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -208,7 +229,35 @@
 
 </main>
 
+<script src="https://cdn.jsdelivr.net/npm/marked@12/marked.min.js"></script>
 <script>
+    // ─── Markdown ─────────────────────────────────────────────────────────────
+    // Безопасный рендер markdown в HTML. Если библиотека не загрузилась —
+    // откатываемся к обычному тексту.
+    function renderMarkdown(text) {
+        try {
+            if (window.marked) {
+                return marked.parse(text, { breaks: true, gfm: true });
+            }
+        } catch (e) { /* fallthrough */ }
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    function setMarkdown(el, text) {
+        el.innerHTML = renderMarkdown(text);
+        el.classList.add('md');
+    }
+
+    // Конвертируем серверно-отрендеренные сообщения ассистента в markdown
+    document.addEventListener('DOMContentLoaded', function() {
+        document.querySelectorAll('.msg.assistant .msg-bubble').forEach(function(bubble) {
+            const raw = bubble.textContent;
+            if (raw && raw.trim()) setMarkdown(bubble, raw);
+        });
+    });
+
     // ─── Tabs ─────────────────────────────────────────────────────────────────
     function switchTab(name, btn) {
         document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
@@ -246,6 +295,8 @@
             typing.className = 'typing';
             typing.innerHTML = '<span></span><span></span><span></span>';
             bubble.appendChild(typing);
+        } else if (role === 'assistant') {
+            setMarkdown(bubble, content);
         } else {
             bubble.textContent = content;
         }
@@ -274,7 +325,7 @@
                 body: JSON.stringify({ message: text })
             });
             const data = await response.json();
-            pendingNode.querySelector('.msg-bubble').textContent = data.reply || 'Пустой ответ';
+            setMarkdown(pendingNode.querySelector('.msg-bubble'), data.reply || 'Пустой ответ');
         } catch (e) {
             pendingNode.querySelector('.msg-bubble').textContent = '⚠️ Ошибка соединения: ' + e.message;
         } finally {
@@ -315,8 +366,13 @@
 
     function showResult(elId, text, isError) {
         const el = document.getElementById(elId);
-        el.textContent = text;
-        el.className = 'ai-result visible' + (isError ? ' error' : '');
+        if (isError) {
+            el.textContent = text;
+            el.className = 'ai-result visible error';
+        } else {
+            setMarkdown(el, text);
+            el.className = 'ai-result visible md';
+        }
         el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
 
@@ -374,6 +430,22 @@
             showResult('matchFeedResult', '⚠️ Ошибка: ' + e.message, true);
         } finally {
             setLoading('matchFeedBtn', false);
+        }
+    }
+
+    async function matchByProfile() {
+        setLoading('matchProfileBtn', true);
+        try {
+            const r = await fetch('/api/tenders/match-profile', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            const d = await r.json();
+            showResult('matchFeedResult', d.result, d.error);
+        } catch (e) {
+            showResult('matchFeedResult', '⚠️ Ошибка: ' + e.message, true);
+        } finally {
+            setLoading('matchProfileBtn', false);
         }
     }
 
