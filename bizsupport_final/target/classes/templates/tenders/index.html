@@ -170,12 +170,17 @@
 
             <div class="results-meta">
                 <span>Найдено: <strong th:text="${response.totalItems}">0</strong></span>
-                <select class="sort-select" onchange="changeSort(this.value)">
-                    <option value="publishedAt,desc" th:selected="${filter.sort == 'publishedAt,desc'}">Сначала новые</option>
-                    <option value="submissionDeadline,asc" th:selected="${filter.sort == 'submissionDeadline,asc'}">Скоро дедлайн</option>
-                    <option value="initialPrice,desc" th:selected="${filter.sort == 'initialPrice,desc'}">Дороже</option>
-                    <option value="initialPrice,asc" th:selected="${filter.sort == 'initialPrice,asc'}">Дешевле</option>
-                </select>
+                <div style="display:flex;gap:8px;align-items:center">
+                    <button id="aiListBtn" class="btn btn-secondary" style="font-size:12px;padding:6px 12px" onclick="analyzeCurrentPage()" title="AI-анализ текущей страницы тендеров">
+                        🤖 AI-анализ страницы
+                    </button>
+                    <select class="sort-select" onchange="changeSort(this.value)">
+                        <option value="publishedAt,desc" th:selected="${filter.sort == 'publishedAt,desc'}">Сначала новые</option>
+                        <option value="submissionDeadline,asc" th:selected="${filter.sort == 'submissionDeadline,asc'}">Скоро дедлайн</option>
+                        <option value="initialPrice,desc" th:selected="${filter.sort == 'initialPrice,desc'}">Дороже</option>
+                        <option value="initialPrice,asc" th:selected="${filter.sort == 'initialPrice,asc'}">Дешевле</option>
+                    </select>
+                </div>
             </div>
 
             <div th:if="${#lists.isEmpty(response.items)}" class="empty">
@@ -225,6 +230,26 @@
     </div>
 </main>
 
+<!-- AI Analysis Modal -->
+<div id="aiModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center">
+    <div style="background:white;border-radius:12px;padding:28px;max-width:700px;width:90%;max-height:80vh;display:flex;flex-direction:column;gap:16px">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+            <h2 style="margin:0;font-size:17px">🤖 AI-анализ тендеров</h2>
+            <button onclick="closeAiModal()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--muted)">✕</button>
+        </div>
+        <div id="aiModalBody" style="flex:1;overflow-y:auto;font-size:14px;line-height:1.7;white-space:pre-wrap;word-break:break-word;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;padding:16px;color:var(--text)">
+            <div style="text-align:center;color:var(--muted);padding:20px">
+                <div style="font-size:24px;margin-bottom:8px">⏳</div>
+                Анализирую тендеры...
+            </div>
+        </div>
+        <div style="display:flex;justify-content:flex-end;gap:8px">
+            <a href="/assistant" style="padding:8px 16px;background:#F1F5F9;color:var(--text);border-radius:8px;text-decoration:none;font-size:13px;font-weight:500">Открыть AI-ассистент →</a>
+            <button onclick="closeAiModal()" style="padding:8px 16px;background:var(--accent);color:white;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:500">Закрыть</button>
+        </div>
+    </div>
+</div>
+
 <script>
     function changeSort(value) {
         const url = new URL(window.location.href);
@@ -232,6 +257,54 @@
         url.searchParams.delete('page');
         window.location = url.toString();
     }
+
+    function collectCurrentPageIds() {
+        const cards = document.querySelectorAll('.tender-card');
+        const ids = [];
+        cards.forEach(card => {
+            const onclick = card.getAttribute('onclick') || '';
+            const m = onclick.match(/\/tenders\/(\d+)/);
+            if (m) ids.push(parseInt(m[1]));
+        });
+        return ids;
+    }
+
+    async function analyzeCurrentPage() {
+        const ids = collectCurrentPageIds();
+        if (!ids.length) { alert('Нет тендеров для анализа'); return; }
+
+        const modal = document.getElementById('aiModal');
+        const body = document.getElementById('aiModalBody');
+        modal.style.display = 'flex';
+        body.innerHTML = '<div style="text-align:center;color:var(--muted);padding:20px"><div style="font-size:24px;margin-bottom:8px">⏳</div>Анализирую ' + ids.length + ' тендеров...</div>';
+
+        const btn = document.getElementById('aiListBtn');
+        btn.disabled = true;
+        try {
+            const r = await fetch('/api/tenders/analyze-list', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                body: JSON.stringify({ ids })
+            });
+            const d = await r.json();
+            body.textContent = d.result;
+            if (d.error) body.style.background = '#FEF2F2';
+        } catch (e) {
+            body.textContent = '⚠️ Ошибка: ' + e.message;
+            body.style.background = '#FEF2F2';
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
+    function closeAiModal() {
+        document.getElementById('aiModal').style.display = 'none';
+        document.getElementById('aiModalBody').style.background = '#F8FAFC';
+    }
+
+    document.getElementById('aiModal').addEventListener('click', function(e) {
+        if (e.target === this) closeAiModal();
+    });
 </script>
 
 </body>
