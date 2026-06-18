@@ -23,6 +23,35 @@ public class CompanyProfileService {
         return profileRepo.findByUserId(userId);
     }
 
+    /**
+     * Краткое описание компании пользователя для подмешивания в системный
+     * промпт AI-ассистента (персональные ответы). Возвращает empty, если профиль не заполнен.
+     */
+    @Transactional(readOnly = true)
+    public Optional<String> getProfileContext(Long userId) {
+        return profileRepo.findByUserId(userId).map(p -> {
+            StringBuilder sb = new StringBuilder();
+            sb.append(p.getCompanyType() != null ? p.getCompanyType().getDisplayName() : "Компания");
+            if (p.getCompanyName() != null) sb.append(" \"").append(p.getCompanyName()).append("\"");
+            if (p.getIndustry() != null && !p.getIndustry().isBlank())
+                sb.append(", отрасль: ").append(p.getIndustry());
+            if (p.getEmployeesCount() != null)
+                sb.append(", сотрудников: ").append(p.getEmployeesCount());
+            if (p.getAnnualRevenue() != null)
+                sb.append(", годовая выручка: ").append(p.getAnnualRevenue().toPlainString()).append(" ₽");
+            sb.append(", статус МСП: ").append(Boolean.TRUE.equals(p.getIsMsp()) ? "да" : "нет");
+
+            List<CompanyTaxRegime> regimes = companyTaxRegimeRepo.findByCompanyProfileIdAndIsCurrentTrue(p.getId());
+            if (!regimes.isEmpty()) {
+                String names = regimes.stream()
+                        .map(ctr -> ctr.getTaxRegime().getName())
+                        .collect(java.util.stream.Collectors.joining(", "));
+                sb.append(". Налоговый режим: ").append(names);
+            }
+            return sb.toString();
+        });
+    }
+
     @Transactional
     public CompanyProfile saveOrUpdate(Long userId, CompanyProfileRequest req) {
         User user = userRepo.findById(userId).orElseThrow();

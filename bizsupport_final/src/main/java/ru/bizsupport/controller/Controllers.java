@@ -18,7 +18,9 @@ import ru.bizsupport.repository.UserRepository;
 import ru.bizsupport.service.*;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
 // ── AUTH ──────────────────────────────────────────────────────
@@ -290,6 +292,7 @@ class ProcurementController {
 class SearchController {
     private final TaxService taxService;
     private final ProcurementService procurementService;
+    private final TenderService tenderService;
 
     @GetMapping("/search")
     String search(@RequestParam(required = false) String q, Model m) {
@@ -313,6 +316,15 @@ class SearchController {
                     s.getTitle(),
                     s.getDescription() != null ? trunc(s.getDescription(), 120) : "",
                     "/procurement/scenario/" + s.getId(), "PROCUREMENT")));
+            // Поиск по тендерам (по названию, заказчику, реестровому номеру)
+            var tenderFilter = new ru.bizsupport.dto.TenderDtos.FilterRequest();
+            tenderFilter.setQuery(q);
+            tenderFilter.setSize(10);
+            tenderService.search(tenderFilter).getItems()
+                .forEach(t -> results.add(new SearchResult(
+                    t.getTitle(),
+                    t.getCustomerName() + (t.getRegion() != null ? " · " + t.getRegion() : ""),
+                    "/tenders/" + t.getId(), "TENDER")));
             m.addAttribute("results", results);
         }
         return "search/index";
@@ -440,6 +452,92 @@ class NotificationController {
     java.util.Map<String, Long> unreadCount(@AuthenticationPrincipal UserDetails ud) {
         User user = userRepo.findByEmail(ud.getUsername()).orElseThrow();
         return java.util.Map.of("count", notificationService.countUnread(user.getId()));
+    }
+}
+
+// ── CALENDAR (дедлайны: налоги + тендеры) ─────────────────────
+@Controller
+@RequestMapping("/calendar")
+@RequiredArgsConstructor
+class CalendarController {
+    private final UserRepository userRepo;
+    private final CompanyProfileService profileService;
+    private final TaxService taxService;
+    private final FavoriteService favoriteService;
+    private final TenderService tenderService;
+
+    @GetMapping
+    String calendar(@AuthenticationPrincipal UserDetails ud, Model m) {
+        User user = userRepo.findByEmail(ud.getUsername()).orElseThrow();
+        List<CalendarEvent> events = new ArrayList<>();
+        final LocalDate today = LocalDate.now();
+        final LocalDate horizon = today.plusMonths(6);
+
+        // Налоговые дедлайны: персональные компании + шаблонные по текущим режимам
+        profileService.findByUserId(user.getId()).ifPresent(profile -> {
+            for (Deadline d : taxService.getCompanyDeadlines(profile.getId())) {
+                addDeadlineEvent(events, d, today, horizon);
+            }
+            taxService.getCompanyCurrentRegimes(profile.getId()).forEach(ctr -> {
+                for (Deadline d : taxService.getTemplateDeadlines(ctr.getTaxRegime().getId())) {
+                    addDeadlineEvent(events, d, today, horizon);
+                }
+            });
+        });
+
+        // Тендеры из избранного — дедлайны подачи заявок
+        for (UserFavorite fav : favoriteService.getUserFavoritesByType(user.getId(), EntityType.TENDER)) {
+            try {
+                var t = tenderService.getDetail(fav.getEntityId());
+                if (t.getSubmissionDeadline() == null) continue;
+                LocalDate d = t.getSubmissionDeadline().toLocalDate();
+                if (!d.isBefore(today) && !d.isAfter(horizon)) {
+                    events.add(new CalendarEvent(d.toString(),
+                            "Подача заявок: " + t.getTitle(), "TENDER",
+                            "/tenders/" + t.getId(), "Тендер № " + t.getRegistryNumber()));
+                }
+            } catch (Exception ignored) {}
+        }
+
+        events.sort(Comparator.comparing(CalendarEvent::getDate));
+        m.addAttribute("events", events);
+        return "calendar/index";
+    }
+
+    private void addDeadlineEvent(List<CalendarEvent> events, Deadline d, LocalDate today, LocalDate horizon) {
+        LocalDate date = nextOccurrence(d.getDueDate(), d.getRepeatRule(), today);
+        if (date == null || date.isBefore(today) || date.isAfter(horizon)) return;
+        events.add(new CalendarEvent(date.toString(), d.getTitle(), "TAX",
+                "/tax", d.getDescription() != null ? d.getDescription() : ""));
+    }
+
+    /** Ближайшая дата наступления дедлайна с учётом периодичности. */
+    private LocalDate nextOccurrence(LocalDate base, Deadline.RepeatRule rule, LocalDate today) {
+        if (base == null) return null;
+        if (rule == null || rule == Deadline.RepeatRule.NONE) return base;
+        LocalDate d = base;
+        int guard = 0;
+        while (d.isBefore(today) && guard++ < 600) {
+            d = switch (rule) {
+                case ANNUAL -> d.plusYears(1);
+                case QUARTERLY -> d.plusMonths(3);
+                case MONTHLY -> d.plusMonths(1);
+                default -> d;
+            };
+        }
+        return d;
+    }
+
+    public static class CalendarEvent {
+        private final String date, title, type, url, description;
+        public CalendarEvent(String date, String title, String type, String url, String description) {
+            this.date = date; this.title = title; this.type = type; this.url = url; this.description = description;
+        }
+        public String getDate() { return date; }
+        public String getTitle() { return title; }
+        public String getType() { return type; }
+        public String getUrl() { return url; }
+        public String getDescription() { return description; }
     }
 }
 

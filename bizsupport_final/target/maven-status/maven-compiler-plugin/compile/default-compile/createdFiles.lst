@@ -18,6 +18,7 @@ ru/bizsupport/dto/response/ApiResponses$CompanyTaxRegimeResponse.class
 ru/bizsupport/dto/response/ApiResponses$ChecklistStepResponse.class
 ru/bizsupport/controller/api/FavoriteApiController$FavoriteResponse.class
 ru/bizsupport/dto/response/ApiResponses$RiskCardResponse.class
+ru/bizsupport/controller/CalendarController$CalendarEvent.class
 ru/bizsupport/controller/api/DashboardApiController.class
 ru/bizsupport/config/OpenApiConfig.class
 ru/bizsupport/security/jwt/JwtAuthFilter.class
@@ -36,6 +37,7 @@ ru/bizsupport/controller/api/SearchApiController.class
 ru/bizsupport/controller/SearchController.class
 ru/bizsupport/controller/TaxController.class
 ru/bizsupport/controller/api/AuthApiController$1.class
+ru/bizsupport/controller/CalendarController.class
 ru/bizsupport/repository/DeadlineRepository.class
 ru/bizsupport/entity/CompanyTaxRegime$CompanyTaxRegimeBuilder.class
 ru/bizsupport/controller/api/ProfileApiController.class
@@ -163,3 +165,4 @@ ru/bizsupport/service/provider/MockTenderProvider.class
 ru/bizsupport/entity/TaxObligation.class
 ru/bizsupport/entity/RiskCard$RiskCardBuilder.class
 ru/bizsupport/repository/CompanyProfileRepository.class
+ru/bizsupport/controller/CalendarController$1.class

@@ -3,13 +3,17 @@ package ru.bizsupport.controller.api;
 import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 import ru.bizsupport.controller.AssistantController;
 import ru.bizsupport.dto.assistant.AssistantDtos.ChatRequest;
 import ru.bizsupport.dto.assistant.AssistantDtos.ChatResponse;
 import ru.bizsupport.dto.assistant.AssistantDtos.HistoryResponse;
 import ru.bizsupport.dto.assistant.AssistantMessage;
+import ru.bizsupport.repository.UserRepository;
 import ru.bizsupport.service.AssistantService;
+import ru.bizsupport.service.CompanyProfileService;
 
 import java.util.List;
 import java.util.Map;
@@ -29,9 +33,13 @@ import java.util.Map;
 public class AssistantApiController {
 
     private final AssistantService assistantService;
+    private final UserRepository userRepository;
+    private final CompanyProfileService companyProfileService;
 
     @PostMapping("/chat")
-    public ResponseEntity<ChatResponse> chat(@RequestBody ChatRequest request, HttpSession session) {
+    public ResponseEntity<ChatResponse> chat(@RequestBody ChatRequest request,
+                                             @AuthenticationPrincipal UserDetails ud,
+                                             HttpSession session) {
         if (request.getMessage() == null || request.getMessage().isBlank()) {
             return ResponseEntity.badRequest().body(ChatResponse.error("Сообщение пустое"));
         }
@@ -42,7 +50,15 @@ public class AssistantApiController {
         int contextSize = Math.min(history.size(), 10);
         List<AssistantMessage> context = history.subList(history.size() - contextSize, history.size());
 
-        String reply = assistantService.chat(context, request.getMessage());
+        // Персонализация: подмешиваем профиль компании в системный промпт
+        String userContext = null;
+        if (ud != null) {
+            userContext = userRepository.findByEmail(ud.getUsername())
+                    .flatMap(u -> companyProfileService.getProfileContext(u.getId()))
+                    .orElse(null);
+        }
+
+        String reply = assistantService.chat(context, request.getMessage(), userContext);
 
         history.add(AssistantMessage.user(request.getMessage()));
         history.add(AssistantMessage.assistant(reply));

@@ -71,6 +71,15 @@ public class AssistantService {
      * Отправить сообщение в LLM с учётом истории диалога.
      */
     public String chat(List<AssistantMessage> history, String userMessage) {
+        return chat(history, userMessage, null);
+    }
+
+    /**
+     * Отправить сообщение в LLM с учётом истории диалога и контекста пользователя.
+     * @param userContext краткое описание компании пользователя — подмешивается в системный
+     *                    промпт, чтобы ответы были персональными. Может быть null.
+     */
+    public String chat(List<AssistantMessage> history, String userMessage, String userContext) {
         if (apiKey == null || apiKey.isBlank()) {
             log.warn("AI assistant called but app.assistant.api-key is not set");
             return "⚙️ AI-ассистент пока не настроен.\n\n" +
@@ -79,8 +88,14 @@ public class AssistantService {
         }
 
         try {
+            String systemContent = SYSTEM_PROMPT;
+            if (userContext != null && !userContext.isBlank()) {
+                systemContent += "\n\nПрофиль пользователя (учитывай при ответе, не запрашивай повторно): "
+                        + userContext;
+            }
+
             List<Map<String, String>> messages = new ArrayList<>();
-            messages.add(Map.of("role", "system", "content", SYSTEM_PROMPT));
+            messages.add(Map.of("role", "system", "content", systemContent));
 
             if (history != null) {
                 for (AssistantMessage m : history) {

@@ -14,6 +14,7 @@
       <span class="nav-icon">📋</span>
       <span>Тендеры</span>
     </a>
+    <a th:href="@{/calendar}" th:classappend="${activePage == 'calendar'} ? 'active'"><i class="bi bi-calendar-event"></i> Календарь</a>
     <a th:href="@{/search}" th:classappend="${activePage == 'search'} ? 'active'"><i class="bi bi-search"></i> Поиск</a>
     <a th:href="@{/profile}" th:classappend="${activePage == 'profile'} ? 'active'"><i class="bi bi-building"></i> Профиль</a>
     <a th:href="@{/assistant}"
