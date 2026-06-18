@@ -240,9 +240,10 @@ class ProcurementController {
     String scenarioDetail(@PathVariable Long id,
                           @AuthenticationPrincipal UserDetails ud, Model m) {
         User user = userRepo.findByEmail(ud.getUsername()).orElseThrow();
-        m.addAttribute("scenario", procurementService.getScenarioById(id));
+        ProcurementScenario scenario = procurementService.getScenarioById(id);
+        m.addAttribute("scenario", scenario);
         m.addAttribute("risks", procurementService.getRisksForScenario(id));
-        m.addAttribute("templates", procurementService.getTemplates());
+        m.addAttribute("templates", procurementService.getTemplatesForScenario(scenario));
         m.addAttribute("legalRefs", legalRefService.getReferences(EntityType.PROCUREMENT, id));
         m.addAttribute("isFavorite", favoriteService.isFavorite(user.getId(), EntityType.PROCUREMENT, id));
         return "procurement/scenario";

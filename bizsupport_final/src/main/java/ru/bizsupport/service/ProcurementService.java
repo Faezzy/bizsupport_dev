@@ -40,6 +40,23 @@ public class ProcurementService {
         return checklistRepo.findByIsTemplateTrue();
     }
 
+    /**
+     * Шаблоны чек-листов, релевантные сценарию: фильтр по типу закона
+     * (44-ФЗ / 223-ФЗ). Так на странице сценария 223-ФЗ не показывается
+     * чек-лист от 44-ФЗ и наоборот.
+     */
+    public List<Checklist> getTemplatesForScenario(ProcurementScenario scenario) {
+        if (scenario == null || scenario.getLawType() == null) {
+            return getTemplates();
+        }
+        List<Checklist> matched = getTemplates().stream()
+                .filter(t -> t.getScenario() != null
+                        && t.getScenario().getLawType() == scenario.getLawType())
+                .collect(Collectors.toList());
+        // Если для закона нет ни одного шаблона — показываем все, чтобы раздел не был пустым
+        return matched.isEmpty() ? getTemplates() : matched;
+    }
+
     public List<Checklist> getUserChecklists(Long userId) {
         return checklistRepo.findByUserId(userId);
     }
