@@ -146,6 +146,22 @@
                     <a th:href="@{|/procurement/scenarios?law=${tender.lawType}|}" style="color: var(--accent); text-decoration: none; display: block; margin-top: 8px; font-weight: 500">Открыть чек-лист →</a>
                 </div>
             </div>
+
+            <!-- AI Analysis Card -->
+            <div class="info-card" id="aiCard">
+                <h3>🤖 AI-анализ тендера</h3>
+                <div style="font-size: 13px; color: var(--muted); margin-bottom: 12px; line-height: 1.5">
+                    Получите детальную оценку рисков, рекомендации по подготовке заявки и вывод о привлекательности.
+                </div>
+                <button id="aiAnalyzeBtn" class="btn btn-primary" style="width: 100%; margin-bottom: 8px"
+                        onclick="analyzeTender([[${tender.id}]])">
+                    Анализировать
+                </button>
+                <a th:href="@{/assistant}" style="display: block; text-align: center; font-size: 12px; color: var(--muted); text-decoration: none; padding: 4px">
+                    Открыть AI-ассистент →
+                </a>
+                <div id="aiResult" style="display:none; margin-top: 12px; background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 14px; font-size: 13px; line-height: 1.7; color: var(--text); white-space: pre-wrap; word-break: break-word;"></div>
+            </div>
         </aside>
     </div>
 </main>
@@ -160,6 +176,31 @@
             if (r.ok) alert('Готово!');
         } catch (e) {
             alert('Войдите, чтобы добавить в избранное');
+        }
+    }
+
+    async function analyzeTender(id) {
+        const btn = document.getElementById('aiAnalyzeBtn');
+        const result = document.getElementById('aiResult');
+        btn.disabled = true;
+        btn.textContent = 'Анализирую...';
+        result.style.display = 'none';
+        try {
+            const r = await fetch(`/api/tenders/${id}/analyze`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            const d = await r.json();
+            result.textContent = d.result;
+            result.style.display = 'block';
+            if (d.error) result.style.background = '#FEF2F2';
+        } catch (e) {
+            result.textContent = '⚠️ Ошибка: ' + e.message;
+            result.style.display = 'block';
+            result.style.background = '#FEF2F2';
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Обновить анализ';
         }
     }
 </script>
