@@ -39,8 +39,10 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             return;
         }
 
-        // Пробуем JWT из cookie
-        String token = extractTokenFromCookie(request);
+        // Пробуем JWT: сначала из заголовка Authorization (REST/KMP-клиенты),
+        // затем из cookie (веб-интерфейс)
+        String token = extractTokenFromHeader(request);
+        if (token == null) token = extractTokenFromCookie(request);
         if (token != null && jwtUtils.validateToken(token)) {
             try {
                 String email = jwtUtils.getEmailFromToken(token);
@@ -56,6 +58,14 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    private String extractTokenFromHeader(HttpServletRequest request) {
+        String header = request.getHeader("Authorization");
+        if (header != null && header.startsWith("Bearer ")) {
+            return header.substring(7).trim();
+        }
+        return null;
     }
 
     private String extractTokenFromCookie(HttpServletRequest request) {
